@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>دروس متوسطة الشهيد بلعكرمي أعمر</title>
+<meta name="description" content="دروس الأساتذة لتلاميذ متوسطة الشهيد بلعكرمي أعمر، البيض. من الأولى إلى الرابعة متوسط.">
+<meta property="og:title" content="دروس متوسطة الشهيد بلعكرمي أعمر">
+<meta property="og:description" content="كل دروس الأساتذة في مكان واحد، من الأولى إلى الرابعة متوسط.">
+<meta property="og:image" content="https://hhaziz32.github.io/doros-school-belakermi/img/og.jpg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#B23F1C">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23B23F1C'/%3E%3Crect x='14' y='16' width='36' height='34' fill='%2324272C'/%3E%3Cpath d='M20 44 L32 24 L44 44 Z' fill='%23E2BC63'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>
+/* ============================================================
+   الإعدادات
+   ============================================================ */
+var SCHOOL_NAME  = "متوسطة الشهيد بلعكرمي أعمر";
+var SCHOOL_DATES = "1918 - 1961";
+var SCHOOL_PLACE = "البيض";
+/* رابط جدول Google Sheets: الصق رابط الجدول العادي (بعد مشاركته «أي شخص لديه الرابط»)
+   أو رابط «النشر على الويب» بصيغة CSV. اتركه فارغًا لاستعمال ملف lessons.csv */
+var SHEET_URL = "";
+/* ============================================================ */
+</script>
+</head>
+<body>
+<header class="facade">
+  <div class="panel" aria-hidden="true"></div>
+  <div class="inner">
+    <span class="eyebrow" id="place">البيض · دروس التلاميذ</span>
+    <h1 id="school">متوسطة الشهيد بلعكرمي أعمر</h1>
+    <span class="dates" id="dates">1918 - 1961</span>
+    <div class="glass">
+      <img src="img/school.jpg" alt="مدخل متوسطة الشهيد بلعكرمي أعمر" width="900" height="1301" fetchpriority="high">
+      <span>دروس أساتذتنا، من الأولى إلى الرابعة متوسط</span>
+    </div>
+  </div>
+  <div class="panel" aria-hidden="true"></div>
+</header>
+
+<main>
+  <div id="error"></div>
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <span class="label">اختر سنتك</span>
+    <nav class="years" id="years" aria-label="السنوات"></nav>
+  </section>
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="ابحث عن درس في هذه السنة…" aria-label="ابحث عن درس" autocomplete="off">
+  </div>
+  <section id="latest" hidden></section>
+  <section id="view"><div class="skeleton"></div></section>
+  <details class="help">
+    <summary>كيف أستعمل الموقع؟</summary>
+    <ol>
+      <li>اضغط على سنتك.</li>
+      <li>اختر المادة، أو اكتب اسم الدرس في خانة البحث.</li>
+      <li>اضغط «افتح الدرس» ليفتح الملف أو الفيديو.</li>
+      <li>إذا لم يفتح الدرس، اطلب المساعدة من أستاذك أو وليّك.</li>
+    </ol>
+  </details>
+</main>
+
+<footer>
+  <div class="strip" aria-hidden="true"></div>
+  <div class="in">
+    <span><b id="fschool">متوسطة الشهيد بلعكرمي أعمر</b> · <span id="fplace">البيض</span></span>
+    <a href="poster.html">ملصق QR للأقسام</a>
+  </div>
+</footer>
+
+<script>
+(function(){
+var SUBJ=[
+ {k:"ar",n:"اللغة العربية",g:"ع"},{k:"math",n:"الرياضيات",g:"ر"},{k:"fr",n:"اللغة الفرنسية",g:"Fr"},
+ {k:"en",n:"اللغة الإنجليزية",g:"En"},{k:"sci",n:"العلوم الطبيعية",g:"ط"},{k:"phy",n:"العلوم الفيزيائية",g:"ف"},
+ {k:"hist",n:"التاريخ والجغرافيا",g:"تج"},{k:"isl",n:"التربية الإسلامية",g:"إ"},{k:"civ",n:"التربية المدنية",g:"م"},
+ {k:"amz",n:"اللغة الأمازيغية",g:"ⵣ"},{k:"art",n:"التربية التشكيلية",g:"ت"},{k:"mus",n:"التربية الموسيقية",g:"♪"},
+ {k:"info",n:"المعلوماتية",g:"IT"}];
+var YEARS=[{n:1,name:"الأولى متوسط"},{n:2,name:"الثانية متوسط"},{n:3,name:"الثالثة متوسط"},{n:4,name:"الرابعة متوسط"}];
+var TERMS=["الفصل الأول","الفصل الثاني","الفصل الثالث"];
+var KIND={video:"فيديو",file:"ملف",link:"رابط"};
+var $=function(id){return document.getElementById(id)};
+var lessons=[],loaded=false,ui={year:1,subj:null,q:""};
+
+$("school").textContent=$("fschool").textContent=SCHOOL_NAME;
+$("dates").textContent=SCHOOL_DATES;$("dates").hidden=!SCHOOL_DATES;
+$("place").textContent=(SCHOOL_PLACE?SCHOOL_PLACE+" · ":"")+"دروس التلاميذ";$("fplace").textContent=SCHOOL_PLACE;
+
+var hm=(location.hash||"").slice(1).match(/^y([1-4])(?:-([a-z]+))?$/);
+if(hm){ui.year=+hm[1];if(hm[2]&&subj(hm[2]))ui.subj=hm[2]}
+else{try{var sy=+localStorage.getItem("doros-year");if(sy>=1&&sy<=4)ui.year=sy}catch(e){}}
+
+function subj(k){for(var i=0;i<SUBJ.length;i++)if(SUBJ[i].k===k)return SUBJ[i];return null}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function kind(u){if(/youtu\.?be/i.test(u))return"video";if(/\.pdf($|[?#])/i.test(u)||/(drive|docs)\.google\./i.test(u))return"file";return"link"}
+function safeUrl(u){return typeof u==="string"&&/^https:\/\/\S+$/i.test(u)}
+function norm(s){return String(s||"").replace(/[ً-ْـ]/g,"").replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/\s+/g," ").trim().toLowerCase()}
+function digit(s){return String(s).replace(/[٠-٩]/g,function(c){return"٠١٢٣٤٥٦٧٨٩".indexOf(c)})}
+
+function parseYear(v){v=norm(digit(v));var d=v.match(/[1-4]/);if(d)return +d[0];
+ if(/اول/.test(v))return 1;if(/ثاني/.test(v))return 2;if(/ثالث/.test(v))return 3;if(/رابع/.test(v))return 4;return 0}
+function parseTerm(v){var t=parseYear(v);return t>=1&&t<=3?t:1}
+function parseSubj(v){v=norm(v);if(!v)return null;
+ for(var i=0;i<SUBJ.length;i++){var n=norm(SUBJ[i].n);if(n===v||n.indexOf(v)>=0||v.indexOf(n.replace(/^(اللغه|التربيه|العلوم) /,""))>=0)return SUBJ[i].k}
+ var alias={"فيزياء":"phy","فيزيائيه":"phy","طبيعيه":"sci","علوم":"sci","تاريخ":"hist","جغرافيا":"hist","اسلاميه":"isl","مدنيه":"civ","انجليزيه":"en","انقليزيه":"en","english":"en","فرنسيه":"fr","francais":"fr","عربيه":"ar","اعلام":"info","معلوماتيه":"info","موسيقي":"mus","رسم":"art","تشكيليه":"art","امازيغيه":"amz","رياضيات":"math","math":"math"};
+ for(var a in alias)if(v.indexOf(a)>=0)return alias[a];return null}
+function parseDate(v){v=digit(String(v||"").trim());var a=v.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);if(a)return a[1]+"-"+a[2].padStart(2,"0")+"-"+a[3].padStart(2,"0");
+ var b=v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);if(b)return b[3]+"-"+b[2].padStart(2,"0")+"-"+b[1].padStart(2,"0");return""}
+function fmt(d){var p=String(d||"").split("-");return p.length===3?(+p[2])+"/"+(+p[1])+"/"+p[0]:""}
+function isNew(d){if(!d)return false;var t=Date.parse(d);return t&&(Date.now()-t)<8*864e5&&t<=Date.now()+864e5}
+
+function parseCSV(t){var rows=[],row=[],f="",q=false;t=String(t).replace(/^﻿/,"");
+ for(var i=0;i<t.length;i++){var c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c==='"')q=true;else if(c===","){row.push(f);f=""}
+  else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f=""}
+  else f+=c}
+ if(f!==""||row.length){row.push(f);rows.push(row)}return rows}
+
+function fromRows(rows){if(!rows.length)return[];
+ var H=rows[0].map(norm),col=function(){for(var i=0;i<arguments.length;i++){var k=norm(arguments[i]);for(var j=0;j<H.length;j++)if(H[j].indexOf(k)>=0)return j}return-1};
+ var cY=col("السنه","year"),cS=col("الماده","subject"),cT=col("الفصل","term"),cN=col("عنوان","title"),cU=col("الرابط","url","link"),cP=col("الاستاذ","teacher"),cO=col("ملاحظه","note"),cD=col("التاريخ","date");
+ var out=[];
+ rows.slice(1).forEach(function(r,i){var g=function(c){return c>=0&&r[c]!=null?String(r[c]).trim():""};
+  var l={id:"r"+String(i).padStart(5,"0"),year:parseYear(g(cY)),subject:parseSubj(g(cS)),term:parseTerm(g(cT)),title:g(cN),url:g(cU),teacher:g(cP),note:g(cO),date:parseDate(g(cD))};
+  if(l.year&&l.subject&&l.title&&safeUrl(l.url))out.push(l)});
+ return out}
+
+function byNewest(a,b){return(b.date||"").localeCompare(a.date||"")||b.id.localeCompare(a.id)}
+function count(y,s){return lessons.filter(function(l){return l.year===y&&(!s||l.subject===s)}).length}
+
+function card(l,showWhere){var k=kind(l.url),meta=[],s=subj(l.subject);
+ if(l.teacher)meta.push("الأستاذ(ة): "+esc(l.teacher));if(l.date)meta.push(fmt(l.date));
+ return'<article class="lesson">'
+  +(showWhere?'<span class="where">'+esc(YEARS[l.year-1].name)+' · '+esc(s.n)+'</span>':"")
+  +'<div class="row"><h4>'+esc(l.title)+'</h4><span class="tags">'+(isNew(l.date)?'<span class="pill new">جديد</span>':"")+'<span class="pill '+k+'">'+KIND[k]+'</span></span></div>'
+  +(meta.length?'<div class="meta">'+meta.map(function(x){return"<span>"+x+"</span>"}).join("<span>·</span>")+'</div>':"")
+  +(l.note?'<p class="note">'+esc(l.note)+'</p>':"")
+  +'<a class="open" href="'+esc(l.url)+'" target="_blank" rel="noopener">افتح الدرس ↗</a></article>'}
+
+function renderYears(){var o="";
+ YEARS.forEach(function(y){var c=count(y.n);o+='<button class="year" data-act="year" data-y="'+y.n+'" aria-pressed="'+(ui.year===y.n)+'"><b>'+y.name+'</b><span>'+(loaded?(c?c+" درس":"لا دروس بعد"):"…")+'</span></button>'});
+ $("years").innerHTML=o}
+
+function renderLatest(){var L=lessons.slice().sort(byNewest).slice(0,3),el=$("latest");
+ if(!L.length||ui.subj||ui.q){el.hidden=true;return}
+ el.hidden=false;el.innerHTML='<div class="sec-h" style="margin-bottom:8px"><h2>آخر الدروس</h2></div><div class="minis">'+L.map(function(l){var k=kind(l.url);
+  return'<a class="mini" href="'+esc(l.url)+'" target="_blank" rel="noopener"><span class="mt"><b>'+esc(l.title)+'</b><small>'+esc(YEARS[l.year-1].name)+' · '+esc(subj(l.subject).n)+(l.date?' · '+fmt(l.date):'')+'</small></span>'
+   +(isNew(l.date)?'<span class="pill new">جديد</span>':'<span class="pill '+k+'">'+KIND[k]+'</span>')+'</a>'}).join("")+'</div>'}
+
+function renderView(){var o="",yname=YEARS[ui.year-1].name;
+ if(!loaded){$("view").innerHTML='<div class="list"><div class="skeleton"></div><div class="skeleton"></div></div>';return}
+ if(ui.q){var q=norm(ui.q),R=lessons.filter(function(l){return l.year===ui.year&&norm(l.title+" "+l.note+" "+l.teacher+" "+subj(l.subject).n).indexOf(q)>=0}).sort(byNewest);
+  o='<div class="sec-h"><h2>نتائج البحث في '+yname+'</h2></div>';
+  o+=R.length?'<div class="list" style="margin-top:10px">'+R.map(function(l){return card(l,true)}).join("")+'</div>':'<div class="empty" style="margin-top:10px">لا يوجد درس بهذا الاسم في '+yname+'.</div>';
+ }else if(!ui.subj){
+  o='<div class="sec-h" style="margin-bottom:10px"><h2>مواد '+yname+'</h2></div><div class="subjects">';
+  SUBJ.forEach(function(s){var c=count(ui.year,s.k);o+='<button class="subj'+(c?" has":"")+'" data-act="subj" data-k="'+s.k+'" style="--yc:var(--y'+ui.year+')"><span class="glyph" aria-hidden="true">'+esc(s.g)+'</span><span class="t"><b>'+s.n+'</b><small>'+(c?c+" درس":"لا دروس بعد")+'</small></span></button>'});
+  o+='</div>';
+ }else{
+  var s=subj(ui.subj),list=lessons.filter(function(l){return l.year===ui.year&&l.subject===ui.subj}).sort(byNewest);
+  o='<div class="sec-h" style="margin-bottom:12px"><h2>'+s.n+' · '+yname+'</h2><button class="back" data-act="back">→ كل المواد</button></div>';
+  if(!list.length)o+='<div class="empty">لم يُضِف الأستاذ دروسًا لهذه المادة بعد. عُد لاحقًا.</div>';
+  else{o+='<div style="display:flex;flex-direction:column;gap:18px">';[1,2,3].forEach(function(t){var L=list.filter(function(l){return l.term===t});if(!L.length)return;
+   o+='<section class="term"><h3>'+TERMS[t-1]+'</h3>'+L.map(function(l){return card(l,false)}).join("")+'</section>'});o+='</div>'}
+ }
+ $("view").innerHTML=o}
+
+function render(){renderYears();renderLatest();renderView();
+ $("q").placeholder="ابحث عن درس في "+YEARS[ui.year-1].name+"…"}
+
+function go(){history.replaceState(null,"","#y"+ui.year+(ui.subj?"-"+ui.subj:""));render()}
+document.addEventListener("click",function(ev){var b=ev.target.closest("[data-act]");if(!b)return;var a=b.getAttribute("data-act");
+ if(a==="year"){ui.year=+b.getAttribute("data-y");ui.subj=null;try{localStorage.setItem("doros-year",ui.year)}catch(e){}}
+ else if(a==="subj"){ui.subj=b.getAttribute("data-k");ui.q="";$("q").value="";$("view").scrollIntoView({behavior:"smooth",block:"start"})}
+ else if(a==="back")ui.subj=null;
+ go()});
+$("q").addEventListener("input",function(){ui.q=this.value.trim();if(ui.q)ui.subj=null;renderLatest();renderView()});
+
+function sourceUrl(){var u=String(SHEET_URL||"").trim();
+ if(!u)return"lessons.csv?t="+Date.now();
+ var m=u.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/);
+ if(m&&!/\/pub|output=csv/.test(u))return"https://docs.google.com/spreadsheets/d/"+m[1]+"/gviz/tq?tqx=out:csv&t="+Date.now();
+ return u+(u.indexOf("?")>=0?"&":"?")+"t="+Date.now()}
+
+render();
+fetch(sourceUrl(),{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.text()})
+ .then(function(t){if(/^\s*<!doctype|^\s*<html/i.test(t))throw 0;lessons=fromRows(parseCSV(t));loaded=true;render()})
+ .catch(function(){loaded=true;$("error").innerHTML='<div class="msg" role="status">تعذّر تحميل الدروس. تحقّق من اتصالك بالإنترنت ثم أعد فتح الصفحة.</div>';render()});
+})();
+</script>
+</body>
+</html>
