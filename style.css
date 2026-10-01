@@ -4,7 +4,7 @@
   --ground:#F3F4F5; --surface:#FFFFFF; --ink:#1F2227; --muted:#5E646D; --line:#E0E2E5;
   --brick:#B23F1C; --brick-deep:#8E2F12; --gold:#E2BC63; --gold-ink:#8A6418; --charcoal:#24272C;
   --y1:#1D7A6C; --y2:#5B4DB3; --y3:#B0461F; --y4:#2B62B0;
-  --ok:#1F7F55; --danger:#B8322A;
+  --ok:#1F7F55; --danger:#B8322A; --brick-ink:#A53A18;
   --display:"Reem Kufi","IBM Plex Sans Arabic",Tahoma,sans-serif;
   --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
   --lattice:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='20'%3E%3Cpath d='M3 16 L11 3 L19 16 Z' fill='%2324272C'/%3E%3C/svg%3E");
@@ -12,11 +12,11 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --ground:#14161A; --surface:#1D2025; --ink:#ECEDEF; --muted:#A2A8B1; --line:#30343A;
   --brick:#A63A19; --brick-deep:#7A2A10; --gold:#E7C46F; --gold-ink:#E2BC63; --charcoal:#0E0F11;
-  --y1:#45C1AE; --y2:#A596F2; --y3:#F08A5F; --y4:#77A6F2; --ok:#4CC38A; --danger:#FF7A6E; color-scheme:dark}}
+  --y1:#45C1AE; --y2:#A596F2; --y3:#F08A5F; --y4:#77A6F2; --ok:#4CC38A; --danger:#FF7A6E; --brick-ink:#F39A73; color-scheme:dark}}
 :root[data-theme="dark"]{
   --ground:#14161A; --surface:#1D2025; --ink:#ECEDEF; --muted:#A2A8B1; --line:#30343A;
   --brick:#A63A19; --brick-deep:#7A2A10; --gold:#E7C46F; --gold-ink:#E2BC63; --charcoal:#0E0F11;
-  --y1:#45C1AE; --y2:#A596F2; --y3:#F08A5F; --y4:#77A6F2; --ok:#4CC38A; --danger:#FF7A6E; color-scheme:dark}
+  --y1:#45C1AE; --y2:#A596F2; --y3:#F08A5F; --y4:#77A6F2; --ok:#4CC38A; --danger:#FF7A6E; --brick-ink:#F39A73; color-scheme:dark}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -111,3 +111,7 @@ footer a{color:#fff}
 .mini .mt{display:flex;flex-direction:column;min-width:0}
 .mini b{font-weight:600;overflow-wrap:anywhere}
 .mini small{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.dl{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--brick-ink);color:var(--brick-ink);font-weight:600;text-decoration:none;border-radius:10px;padding:7px 16px}
+.dl:hover{background:color-mix(in srgb,var(--brick-ink) 10%,transparent)}
+.pill.pdf{color:var(--brick-ink)}
