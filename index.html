@@ -201,12 +201,21 @@ function load(u,tag){return fetch(u,{cache:"no-store"}).then(function(r){if(!r.o
  .then(function(t){if(/^\s*<!doctype|^\s*<html/i.test(t))throw 0;return fromRows(parseCSV(t)).map(function(l){l.id=tag+l.id;return l})})}
 render();
 var jobs=[load("lessons.csv?t="+Date.now(),"a")];if(sheetUrl())jobs.push(load(sheetUrl(),"b"));
-if(D.apiOn())jobs.push(D.lessons().then(function(L){return L.map(function(x){return{src:"api",apiId:x.id,id:"c"+String(x.ts||0).padStart(15,"0"),year:+x.year,subject:x.subject,term:+x.term||0,
- title:x.title,text:x.text||"",note:"",url:"",teacher:x.teacher||"",date:x.date||"",order:null,files:x.files||[],videos:x.videos||[]}}).filter(function(l){return l.year>=1&&l.year<=4&&subj(l.subject)})}));
+function mapApi(L){return L.map(function(x){return{src:"api",apiId:x.id,id:"c"+String(x.ts||0).padStart(15,"0"),year:+x.year,subject:x.subject,term:+x.term||0,
+ title:x.title,text:x.text||"",note:"",url:"",teacher:x.teacher||"",date:x.date||"",order:null,files:x.files||[],videos:x.videos||[]}}).filter(function(l){return l.year>=1&&l.year<=4&&subj(l.subject)})}
+/* دروس الأساتذة: نعرض فورًا آخر نسخة محفوظة في الهاتف، ثم نحدّثها من الخادم */
+var saved=D.apiOn()?D.cached():null,base=[],apiL=saved?mapApi(saved.lessons):[];
+function merge(){lessons=base.concat(apiL)}
+function notice(t,retry){$("error").innerHTML=t?'<div class="msg" role="status" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span>'+t+'</span>'+(retry?'<button class="btn sm" id="retry" type="button">إعادة المحاولة</button>':'')+'</div>':'';
+ var b=$("retry");if(b)b.onclick=function(){notice("");fetchApi()}}
+function fetchApi(){return D.lessons().then(function(L){apiL=mapApi(L);merge();render();notice("")},function(){
+ if(saved)notice("الخادم مشغول الآن، والمعروض هو آخر نسخة محفوظة في هاتفك.",true);
+ else notice("تعذّر تحميل دروس الأساتذة (الخادم مشغول أو الاتصال ضعيف).",true)})}
 Promise.all(jobs.map(function(j){return j.then(function(v){return{ok:true,v:v}},function(){return{ok:false,v:[]}})})).then(function(rs){
- lessons=[].concat.apply([],rs.map(function(r){return r.v}));loaded=true;
- if(rs.every(function(r){return!r.ok}))$("error").innerHTML='<div class="msg" role="status">تعذّر تحميل الدروس. تحقّق من اتصالك بالإنترنت ثم أعد فتح الصفحة.</div>';
+ base=[].concat.apply([],rs.map(function(r){return r.v}));merge();loaded=true;
+ if(rs.every(function(r){return!r.ok})&&!D.apiOn())notice("تعذّر تحميل الدروس. تحقّق من اتصالك بالإنترنت ثم أعد فتح الصفحة.");
  render()});
+if(D.apiOn())fetchApi();
 })();
 </script>
 </body>

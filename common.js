@@ -19,6 +19,7 @@ var D = (function () {
     BAD_INPUT: "تحقق من الحقول: السنة والمادة والعنوان مطلوبة.",
     NOT_FOUND: "هذا الدرس لم يعد موجودًا.",
     NOT_SETUP: "الخادم لم يُجهَّز بعد. على المدير تشغيل setup مرة واحدة.",
+    QUOTA: "بلغت حد الرفع لهذا اليوم (300 م.ب). أكمل غدًا، أو ضع الفيديوهات على YouTube بدل رفعها.",
     NETWORK: "تعذّر الاتصال بالخادم. تحقق من الإنترنت ثم أعد المحاولة.",
     SERVER: "حدث خطأ في الخادم. أعد المحاولة بعد قليل."
   };
@@ -63,13 +64,58 @@ var D = (function () {
     mp3:"audio/mpeg", m4a:"audio/mp4", aac:"audio/aac", wav:"audio/wav" };
   function mime(f) { var e = String(f.name).split(".").pop().toLowerCase(); return EXT[e] || f.type || ""; }
 
+  /* ---- القراءة: محاولات متكررة بفواصل عشوائية + نسخة محفوظة في الهاتف ----
+     إذا كان الخادم مشغولًا (زحام)، نعيد المحاولة بعد ثوانٍ عشوائية حتى لا يعود الجميع في اللحظة نفسها،
+     ونعرض آخر قائمة محفوظة في هاتف التلميذ خلال ذلك. */
+  var CK = "doros-lessons-v1";
+  function getUrl(q) { return SITE.apiUrl + (SITE.apiUrl.indexOf("?") >= 0 ? "&" : "?") + q + "&t=" + Date.now(); }
+  function wait(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+  function getJson(q, tries) {
+    var n = 0;
+    function attempt() {
+      n++;
+      return fetch(getUrl(q)).then(function (r) {
+        return r.text().then(function (t) {
+          var j; try { j = JSON.parse(t); } catch (e) { j = null; }
+          if (!j) {
+            /* صفحة «الخادم يعمل» = خادم قديم لا يعرف هذا الطلب. أي صفحة أخرى = زحام أو خطأ مؤقت عند Google */
+            var old = /خادم دروس/.test(t), e = new Error(old ? "UNSUPPORTED" : "BUSY"); e.code = e.message; throw e;
+          }
+          if (!j.ok && j.error === "SERVER") { var x = new Error("BUSY"); x.code = "BUSY"; throw x; }
+          return j;
+        });
+      }).catch(function (e) {
+        if (e && e.code === "UNSUPPORTED") throw e;
+        if (n >= tries) { var x = new Error("NETWORK"); x.code = "NETWORK"; throw x; }
+        return wait((n === 1 ? 1200 : 3500) + Math.random() * 2500).then(attempt);
+      });
+    }
+    return attempt();
+  }
+  function cached() {
+    try { var c = JSON.parse(localStorage.getItem(CK) || "null"); return c && Array.isArray(c.lessons) ? c : null; } catch (e) { return null; }
+  }
   function lessons() {
     if (!apiOn()) return Promise.resolve([]);
-    var u = SITE.apiUrl + (SITE.apiUrl.indexOf("?") >= 0 ? "&" : "?") + "api=lessons&t=" + Date.now();
-    return fetch(u).then(function (r) { return r.json(); }).then(function (j) { return j && j.ok ? j.lessons : []; });
+    return getJson("api=lessons", 3).then(function (j) {
+      if (!j.ok) { var e = new Error(j.error || "SERVER"); e.code = j.error || "SERVER"; throw e; }
+      try { localStorage.setItem(CK, JSON.stringify({ at: Date.now(), lessons: j.lessons })); } catch (e) {}
+      return j.lessons;
+    });
+  }
+  /* درس واحد بشرحه الكامل. الخادم القديم لا يعرف هذا الطلب، فنرجع حينها إلى القائمة الكاملة. */
+  function lesson(id) {
+    return getJson("api=lesson&id=" + encodeURIComponent(id), 3).then(function (j) {
+      if (j.ok) return j.lesson;
+      if (j.error === "NOT_FOUND") return null;
+      var e = new Error(j.error || "SERVER"); e.code = j.error || "SERVER"; throw e;
+    }, function (e) {
+      if (e && e.code === "UNSUPPORTED") return lessons().then(function (L) { return L.filter(function (x) { return x.id === id; })[0] || null; });
+      throw e;
+    });
   }
 
   return { SUBJ:SUBJ, YEARS:YEARS, TERMS:TERMS, KINDS:KINDS, subj:subj, esc:esc, fmt:fmt, isNew:isNew, size:size, errText:errText,
     ytId:ytId, driveId:driveId, filePreview:filePreview, fileDownload:fileDownload, fileImage:fileImage,
-    apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons };
+    apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached };
 })();

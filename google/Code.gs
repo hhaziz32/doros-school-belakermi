@@ -1,4 +1,5 @@
 // خادم فضاء الأساتذة — متوسطة الشهيد بلعكرمي أعمر
+// الإصدار 2
 //
 // طريقة التركيب (مرة واحدة):
 //   1. الصق هذا الملف كاملًا في مشروع جديد على script.google.com
@@ -6,6 +7,9 @@
 //   3. انسخ «رمز المدير» من سجل التنفيذ
 //   4. نشر ← عملية نشر جديدة ← تطبيق ويب ← التنفيذ باسم: أنا ← الوصول: أي شخص
 //   5. ضع رابط تطبيق الويب في ملف config.js في الموقع
+//
+// التحديث إلى إصدار جديد (الرابط لا يتغير):
+//   الصق الكود الجديد مكان القديم ← حفظ ← نشر ← إدارة عمليات النشر ← ✏️ ← الإصدار: إصدار جديد ← نشر
 //
 // البيانات تُحفظ في جدول Google باسم «دروس الموقع» في حسابك،
 // والملفات في مجلد «ملفات دروس الموقع» (مشارك للعرض فقط).
@@ -15,6 +19,10 @@ var TZ = "Africa/Algiers";
 var MAX_FILE_MB = 20;
 var MAX_FILES = 10;
 var MAX_VIDEOS = 10;
+var DAILY_UPLOAD_MB = 300;   // حد الرفع اليومي لكل أستاذ، لحماية مساحة Drive
+var EXCERPT = 220;           // طول مقتطف الشرح في قائمة الدروس
+var CACHE_TTL = 21600;       // 6 ساعات (الحد الأقصى في Google)
+var CHUNK = 40000;           // حجم القطعة في الذاكرة المؤقتة (أقل من حد 100KB)
 
 var ALLOWED = {
   "application/pdf": "pdf",
@@ -60,20 +68,37 @@ function setup() {
     admin = { id: newId_(), name: "مدير الموقع", subjects: "", code: newCode_(), role: "admin", active: true };
     tsh.appendRow([admin.id, admin.name, admin.subjects, admin.code, admin.role, true]);
   }
+  rebuild_();
   Logger.log("✅ تم الإعداد.");
   Logger.log("🔑 رمز المدير: " + admin.code);
   Logger.log("📄 جدول البيانات: " + ss.getUrl());
   return admin.code;
 }
 
+// تنظيف: يحذف (إلى سلة المهملات) الملفات المرفوعة قبل أكثر من يومين ولم تُستعمل في أي درس.
+// شغّلها يدويًا من المحرر مرة كل بضعة أشهر.
+function cleanup() {
+  var used = {};
+  lessons_().forEach(function (l) { if (l.status === "published") l.files.forEach(function (f) { used[f.id] = 1; }); });
+  var it = folder_().getFiles(), old = Date.now() - 2 * 864e5, n = 0, checked = 0;
+  while (it.hasNext() && checked < 2000) {
+    var f = it.next(); checked++;
+    if (!used[f.getId()] && f.getDateCreated().getTime() < old) { try { f.setTrashed(true); n++; } catch (e) {} }
+  }
+  Logger.log("🧹 تم فحص " + checked + " ملف، ونُقل " + n + " ملف غير مستعمل إلى سلة المهملات.");
+}
+
 // ---------------- نقاط الوصول ----------------
 
 function doGet(e) {
-  var api = e && e.parameter ? e.parameter.api : "";
-  if (api === "lessons") {
-    try { return json_({ ok: true, lessons: publicLessons_() }); }
-    catch (err) { return json_({ ok: false, error: errCode_(err) }); }
-  }
+  var p = (e && e.parameter) || {};
+  try {
+    if (p.api === "lessons") return json_({ ok: true, v: 2, lessons: publicList_() });
+    if (p.api === "lesson") {
+      var l = publicLesson_(String(p.id || ""));
+      return json_(l ? { ok: true, v: 2, lesson: l } : { ok: false, error: "NOT_FOUND" });
+    }
+  } catch (err) { return json_({ ok: false, error: errCode_(err) }); }
   return HtmlService.createHtmlOutput('<p dir="rtl" style="font:16px sans-serif">خادم دروس ' + SCHOOL + ' يعمل ✓</p>');
 }
 
@@ -90,6 +115,7 @@ function doPost(e) {
       case "teachers": admin_(who); out = { teachers: teachers_() }; break;
       case "addTeacher": admin_(who); out = { teacher: addTeacher_(req.name, req.subjects) }; break;
       case "removeTeacher": admin_(who); removeTeacher_(req.id); out = {}; break;
+      case "resetCode": admin_(who); out = { code: resetCode_(req.id) }; break;
       default: throw new Error("BAD_ACTION");
     }
     out.ok = true;
@@ -123,8 +149,7 @@ function addTeacher_(name, subjects) {
   subjects = String(subjects || "").split(",").filter(function (s) { return SUBJECTS.indexOf(s) >= 0; }).join(",");
   var lock = lock_();
   try {
-    var used = teachers_().map(function (t) { return t.code; }), code;
-    do { code = newCode_(); } while (used.indexOf(code) >= 0);
+    var code = uniqueCode_(teachers_());
     var t = { id: newId_(), name: name, subjects: subjects, code: code, role: "teacher", active: true };
     sheet_(T_SHEET).appendRow([t.id, safe_(t.name), t.subjects, t.code, t.role, true]);
     return t;
@@ -141,6 +166,19 @@ function removeTeacher_(id) {
   } finally { lock.releaseLock(); }
 }
 
+// رمز جديد لأستاذ (مثلًا إذا ضاع هاتفه). الرمز القديم يتوقف فورًا.
+function resetCode_(id) {
+  var lock = lock_();
+  try {
+    var all = teachers_(), t = all.filter(function (x) { return x.id === String(id); })[0];
+    if (!t || !t.active) throw new Error("NOT_FOUND");
+    if (t.role === "admin") throw new Error("FORBIDDEN");
+    var code = uniqueCode_(all);
+    sheet_(T_SHEET).getRange(t._row, T_HEAD.indexOf("code") + 1).setValue(code);
+    return code;
+  } finally { lock.releaseLock(); }
+}
+
 // ---------------- الملفات ----------------
 
 function upload_(who, f) {
@@ -149,11 +187,22 @@ function upload_(who, f) {
   if (!kind) throw new Error("FILE_TYPE");
   var bytes = Utilities.base64Decode(f.data);
   if (bytes.length > MAX_FILE_MB * 1024 * 1024) throw new Error("FILE_SIZE");
+  if (who.role !== "admin") quota_(who, bytes.length);
   var name = clean_(f.name, 120) || ("ملف." + kind);
   var file = folder_().createFile(Utilities.newBlob(bytes, f.type, name));
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-  try { file.setDescription("رفعه: " + who.name); } catch (e) {}
+  try { file.setDescription("u:" + who.id + " · " + who.name); } catch (e) {}
   return { id: file.getId(), name: name, type: f.type, kind: kind, size: bytes.length };
+}
+
+// حد الرفع اليومي لكل أستاذ
+function quota_(who, n) {
+  var p = PropertiesService.getScriptProperties(), key = "q:" + who.id, today = day_(Date.now());
+  var q; try { q = JSON.parse(p.getProperty(key) || "{}"); } catch (e) { q = {}; }
+  if (q.d !== today) q = { d: today, b: 0 };
+  if (q.b + n > DAILY_UPLOAD_MB * 1024 * 1024) throw new Error("QUOTA");
+  q.b += n;
+  p.setProperty(key, JSON.stringify(q));
 }
 
 function ownFile_(id) {
@@ -162,6 +211,10 @@ function ownFile_(id) {
     while (it.hasNext()) if (it.next().getId() === fid) return file;
   } catch (e) {}
   return null;
+}
+function uploader_(file) {
+  var m = String(file.getDescription() || "").match(/^u:([a-z0-9]+)/);
+  return m ? m[1] : "";
 }
 
 // ---------------- الدروس ----------------
@@ -174,30 +227,39 @@ function save_(who, L) {
 
   var videos = (Array.isArray(L.videos) ? L.videos : []).map(function (v) { return String(v || "").trim(); })
     .filter(function (v) { return /^https:\/\/\S+$/i.test(v) && v.length < 500; }).slice(0, MAX_VIDEOS);
-  var files = (Array.isArray(L.files) ? L.files : []).slice(0, MAX_FILES).map(function (f) {
-    if (!f || !ownFile_(f.id)) throw new Error("BAD_FILE");
-    return { id: String(f.id), name: clean_(f.name, 120), type: String(f.type || ""), kind: ALLOWED[f.type] || "file", size: Number(f.size) || 0 };
-  });
-  if (!text && !files.length && !videos.length) throw new Error("EMPTY");
+  var wanted = (Array.isArray(L.files) ? L.files : []).slice(0, MAX_FILES);
+  if (!text && !wanted.length && !videos.length) throw new Error("EMPTY");
 
   var lock = lock_();
   try {
-    var sh = sheet_(L_SHEET), now = Date.now();
+    var sh = sheet_(L_SHEET), now = Date.now(), all = lessons_(), old = null;
     if (L.id) {
-      var old = lessons_().filter(function (x) { return x.id === String(L.id) && x.status === "published"; })[0];
+      old = all.filter(function (x) { return x.id === String(L.id) && x.status === "published"; })[0];
       if (!old) throw new Error("NOT_FOUND");
       if (who.role !== "admin" && old.teacherId !== who.id) throw new Error("FORBIDDEN");
+    }
+    var had = old ? old.files.map(function (f) { return f.id; }) : [];
+    // الأستاذ لا يستطيع إرفاق إلا ملفاته هو (أو الملفات الموجودة أصلًا في هذا الدرس)
+    var files = wanted.map(function (f) {
+      var file = f && ownFile_(f.id);
+      if (!file) throw new Error("BAD_FILE");
+      var id = String(f.id);
+      if (who.role !== "admin" && had.indexOf(id) < 0 && uploader_(file) !== who.id) throw new Error("BAD_FILE");
+      return { id: id, name: clean_(f.name, 120), type: String(f.type || ""), kind: ALLOWED[f.type] || "file", size: Number(f.size) || 0 };
+    });
+
+    if (old) {
       var keep = files.map(function (f) { return f.id; });
-      old.files.forEach(function (f) { if (keep.indexOf(f.id) < 0) trash_(f.id); });
+      trashUnused_(old.files.filter(function (f) { return keep.indexOf(f.id) < 0; }), all, old.id);
       sh.getRange(old._row, 1, 1, L_HEAD.length).setValues([[old.id, old.ts || now, year, subject, term, safe_(title), safe_(text),
         JSON.stringify(files), JSON.stringify(videos), safe_(old.teacher), old.teacherId, "published", now]]);
-      bust_();
+      rebuild_();
       return old.id;
     }
     var id = newId_();
     sh.appendRow([id, now, year, subject, term, safe_(title), safe_(text), JSON.stringify(files), JSON.stringify(videos),
       safe_(who.name), who.id, "published", now]);
-    bust_();
+    rebuild_();
     return id;
   } finally { lock.releaseLock(); }
 }
@@ -205,13 +267,20 @@ function save_(who, L) {
 function del_(who, id) {
   var lock = lock_();
   try {
-    var l = lessons_().filter(function (x) { return x.id === String(id) && x.status === "published"; })[0];
+    var all = lessons_(), l = all.filter(function (x) { return x.id === String(id) && x.status === "published"; })[0];
     if (!l) throw new Error("NOT_FOUND");
     if (who.role !== "admin" && l.teacherId !== who.id) throw new Error("FORBIDDEN");
     sheet_(L_SHEET).getRange(l._row, L_HEAD.indexOf("status") + 1).setValue("deleted");
-    l.files.forEach(function (f) { trash_(f.id); });
-    bust_();
+    trashUnused_(l.files, all, l.id);
+    rebuild_();
   } finally { lock.releaseLock(); }
+}
+
+// لا يُحذف ملف ما دام درس آخر منشور يستعمله
+function trashUnused_(files, all, exceptId) {
+  var used = {};
+  all.forEach(function (x) { if (x.status === "published" && x.id !== exceptId) x.files.forEach(function (f) { used[f.id] = 1; }); });
+  files.forEach(function (f) { if (!used[f.id]) trash_(f.id); });
 }
 
 function lessons_() {
@@ -231,18 +300,80 @@ function view_(l, withOwner) {
   return o;
 }
 
-function publicLessons_() {
-  var cache = CacheService.getScriptCache(), hit = cache.get("lessons");
-  if (hit) return JSON.parse(hit);
-  var list = lessons_().filter(function (l) { return l.status === "published"; }).map(function (l) { return view_(l, false); });
-  var s = JSON.stringify(list);
-  if (s.length < 90000) cache.put("lessons", s, 300);
-  return list;
-}
-
 function mine_(who) {
   return lessons_().filter(function (l) { return l.status === "published" && (who.role === "admin" || l.teacherId === who.id); })
     .map(function (l) { return view_(l, true); }).sort(function (a, b) { return b.ts - a.ts; });
+}
+
+// ---------------- القراءة العامة (سريعة، من الذاكرة المؤقتة) ----------------
+// كل زيارة تلميذ تُقرأ من الذاكرة المؤقتة ولا تلمس الجدول، مهما كثرت الدروس.
+// القائمة تحمل مقتطفًا من الشرح فقط، والشرح الكامل يُطلب عند فتح الدرس.
+
+function publicList_() {
+  var hit = cacheGet_("list");
+  if (hit) { refreshIfOld_(); return JSON.parse(hit); }
+  return rebuild_().list;
+}
+
+function publicLesson_(id) {
+  if (!id) return null;
+  var listS = cacheGet_("list"), textS = listS && cacheGet_("texts"), list, texts;
+  if (listS && textS) { list = JSON.parse(listS); texts = JSON.parse(textS); }
+  else { var b = rebuild_(); list = b.list; texts = b.texts; }
+  var l = list.filter(function (x) { return x.id === id; })[0];
+  if (!l) return null;
+  if (l.more) { l.text = texts[id] || l.text; delete l.more; }
+  return l;
+}
+
+function rebuild_() {
+  var list = [], texts = {};
+  lessons_().forEach(function (l) {
+    if (l.status !== "published") return;
+    var v = view_(l, false);
+    if (v.text.length > EXCERPT) { texts[v.id] = v.text; v.text = v.text.slice(0, EXCERPT); v.more = 1; }
+    list.push(v);
+  });
+  list.sort(function (a, b) { return b.ts - a.ts; });
+  try {
+    cachePut_("texts", JSON.stringify(texts));
+    cachePut_("list", JSON.stringify(list));
+    CacheService.getScriptCache().put("built", String(Date.now()), CACHE_TTL);
+  } catch (e) {}
+  return { list: list, texts: texts };
+}
+
+// تجديد الذاكرة قبل انتهاء صلاحيتها (6 ساعات)، مرة واحدة فقط وبدون انتظار الآخرين
+function refreshIfOld_() {
+  var c = CacheService.getScriptCache(), built = Number(c.get("built") || 0);
+  if (built && Date.now() - built < 5 * 3600e3) return;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) return;
+  try { rebuild_(); } catch (e) {} finally { lock.releaseLock(); }
+}
+
+// تخزين نص طويل في عدة قطع (حد Google: 100KB لكل مفتاح)
+function cachePut_(key, s) {
+  var c = CacheService.getScriptCache(), ver = newId_(), map = {}, n = 0;
+  for (var i = 0; i < s.length; i += CHUNK) map[key + ":" + ver + ":" + (n++)] = s.slice(i, i + CHUNK);
+  if (n === 0) map[key + ":" + ver + ":" + (n++)] = "";
+  c.putAll(map, CACHE_TTL);
+  var prev = c.get(key + ":ptr");
+  c.put(key + ":ptr", ver + ":" + n, CACHE_TTL);
+  if (prev) {
+    var pv = prev.split(":"), old = [];
+    for (var j = 0; j < Number(pv[1]); j++) old.push(key + ":" + pv[0] + ":" + j);
+    try { c.removeAll(old); } catch (e) {}
+  }
+}
+function cacheGet_(key) {
+  var c = CacheService.getScriptCache(), ptr = c.get(key + ":ptr");
+  if (!ptr) return null;
+  var pv = ptr.split(":"), keys = [];
+  for (var i = 0; i < Number(pv[1]); i++) keys.push(key + ":" + pv[0] + ":" + i);
+  var got = c.getAll(keys), s = "";
+  for (var k = 0; k < keys.length; k++) { if (got[keys[k]] == null) return null; s += got[keys[k]]; }
+  return s;
 }
 
 // ---------------- أدوات ----------------
@@ -268,7 +399,6 @@ function rows_(sh, head) {
   }).filter(function (o) { return o.id !== "" && o.id != null; });
 }
 function trash_(id) { var f = ownFile_(id); if (f) try { f.setTrashed(true); } catch (e) {} }
-function bust_() { try { CacheService.getScriptCache().remove("lessons"); } catch (e) {} }
 function lock_() { var l = LockService.getScriptLock(); l.waitLock(20000); return l; }
 function parse_(s) { try { var v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
 function day_(v) {
@@ -277,11 +407,21 @@ function day_(v) {
 }
 function clean_(s, n) { return String(s == null ? "" : s).replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, n); }
 function safe_(s) { s = String(s == null ? "" : s); return /^[=+\-@]/.test(s) ? "'" + s : s; }
-function newId_() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function newId_() { return Date.now().toString(36) + Utilities.getUuid().replace(/-/g, "").slice(0, 6); }
+// رمز من 8 أحرف (أكثر من 850 مليار احتمال)، من مولّد عشوائي آمن
 function newCode_() {
-  var a = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", s = "";
-  for (var i = 0; i < 8; i++) s += a.charAt(Math.floor(Math.random() * a.length));
+  var a = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", s = "", hex = "";
+  while (s.length < 8) {
+    if (hex.length < 2) { var u = Utilities.getUuid().replace(/-/g, ""); hex += u.slice(0, 12) + u.slice(13, 16) + u.slice(17); } // بدون خانات الإصدار الثابتة
+    var b = parseInt(hex.slice(0, 2), 16); hex = hex.slice(2);
+    if (b < 248) s += a.charAt(b % 31);
+  }
   return s.slice(0, 4) + "-" + s.slice(4);
+}
+function uniqueCode_(all) {
+  var used = all.map(function (t) { return t.code; }), code;
+  do { code = newCode_(); } while (used.indexOf(code) >= 0);
+  return code;
 }
 function errCode_(err) {
   var m = String((err && err.message) || err);
