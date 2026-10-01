@@ -1,16 +1,14 @@
-/**
- * خادم فضاء الأساتذة — متوسطة الشهيد بلعكرمي أعمر
- *
- * طريقة التركيب (مرة واحدة):
- *   1. الصق هذا الملف كاملًا في مشروع جديد على script.google.com
- *   2. اختر الدالة setup واضغط «تشغيل»، ثم اسمح بالأذونات
- *   3. انسخ «رمز المدير» من سجل التنفيذ
- *   4. نشر ← عملية نشر جديدة ← تطبيق ويب ← التنفيذ باسم: أنا ← الوصول: أي شخص
- *   5. ضع رابط تطبيق الويب في ملف config.js في الموقع
- *
- * البيانات تُحفظ في جدول Google باسم «دروس الموقع» في حسابك،
- * والملفات في مجلد «ملفات دروس الموقع» (مشارك للعرض فقط).
- */
+// خادم فضاء الأساتذة — متوسطة الشهيد بلعكرمي أعمر
+//
+// طريقة التركيب (مرة واحدة):
+//   1. الصق هذا الملف كاملًا في مشروع جديد على script.google.com
+//   2. اختر الدالة setup واضغط «تشغيل»، ثم اسمح بالأذونات
+//   3. انسخ «رمز المدير» من سجل التنفيذ
+//   4. نشر ← عملية نشر جديدة ← تطبيق ويب ← التنفيذ باسم: أنا ← الوصول: أي شخص
+//   5. ضع رابط تطبيق الويب في ملف config.js في الموقع
+//
+// البيانات تُحفظ في جدول Google باسم «دروس الموقع» في حسابك،
+// والملفات في مجلد «ملفات دروس الموقع» (مشارك للعرض فقط).
 
 var SCHOOL = "متوسطة الشهيد بلعكرمي أعمر";
 var TZ = "Africa/Algiers";
@@ -32,7 +30,7 @@ var L_HEAD = ["id", "date", "year", "subject", "term", "title", "text", "files",
 var T_HEAD = ["id", "name", "subjects", "code", "role", "active"];
 var L_SHEET = "الدروس", T_SHEET = "الأساتذة";
 
-/* ---------------- الإعداد ---------------- */
+// ---------------- الإعداد ----------------
 
 function setup() {
   var p = PropertiesService.getScriptProperties();
@@ -68,7 +66,7 @@ function setup() {
   return admin.code;
 }
 
-/* ---------------- نقاط الوصول ---------------- */
+// ---------------- نقاط الوصول ----------------
 
 function doGet(e) {
   var api = e && e.parameter ? e.parameter.api : "";
@@ -101,7 +99,7 @@ function doPost(e) {
   }
 }
 
-/* ---------------- الأساتذة ---------------- */
+// ---------------- الأساتذة ----------------
 
 function auth_(code) {
   code = String(code || "").trim().toUpperCase();
@@ -143,7 +141,7 @@ function removeTeacher_(id) {
   } finally { lock.releaseLock(); }
 }
 
-/* ---------------- الملفات ---------------- */
+// ---------------- الملفات ----------------
 
 function upload_(who, f) {
   if (!f || !f.data || !f.type) throw new Error("BAD_INPUT");
@@ -166,7 +164,7 @@ function ownFile_(id) {
   return null;
 }
 
-/* ---------------- الدروس ---------------- */
+// ---------------- الدروس ----------------
 
 function save_(who, L) {
   if (!L) throw new Error("BAD_INPUT");
@@ -247,7 +245,7 @@ function mine_(who) {
     .map(function (l) { return view_(l, true); }).sort(function (a, b) { return b.ts - a.ts; });
 }
 
-/* ---------------- أدوات ---------------- */
+// ---------------- أدوات ----------------
 
 function sheet_(name) {
   var id = PropertiesService.getScriptProperties().getProperty("SS");
@@ -290,3 +288,5 @@ function errCode_(err) {
   return /^[A-Z_]+$/.test(m) ? m : "SERVER";
 }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+// ---- نهاية الكود ----
