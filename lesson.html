@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>الدرس · متوسطة الشهيد بلعكرمي أعمر</title>
+<meta name="theme-color" content="#24272C">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23B23F1C'/%3E%3Crect x='14' y='16' width='36' height='34' fill='%2324272C'/%3E%3Cpath d='M20 44 L32 24 L44 44 Z' fill='%23E2BC63'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+<script src="common.js"></script>
+<style>
+  .head{display:flex;flex-direction:column;gap:8px}
+  .head .where{font-size:.88rem}
+  .head h2{font-size:clamp(1.4rem,5.5vw,2rem);font-weight:700}
+  .explain{font-size:1.06rem;line-height:1.95;white-space:pre-wrap;overflow-wrap:anywhere}
+  .sec-t{font-family:var(--display);font-size:1.15rem;font-weight:700;margin-bottom:10px}
+  .video{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
+  .video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .vlink{display:flex;align-items:center;gap:10px}
+  .file{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+  .file .fh{display:flex;align-items:center;gap:10px;padding:10px 12px;flex-wrap:wrap}
+  .file .fh .nm{flex:1;min-width:0;display:flex;flex-direction:column}
+  .file .fh b{font-weight:600;overflow-wrap:anywhere}
+  .file .fh small{color:var(--muted);font-size:.8rem}
+  .file .fb{border-top:1px solid var(--line);background:#E9EAEC}
+  .file .fb iframe{display:block;width:100%;height:min(78vh,900px);border:0;background:#fff}
+  .file .fb img{display:block;margin:0 auto;max-height:85vh;object-fit:contain;background:#fff}
+  .file .fb audio{display:block;width:calc(100% - 24px);margin:12px}
+  .stack{display:flex;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="in">
+    <a class="home" id="back" href="./">→ الدروس</a>
+    <div class="ttl"><h1 id="school"></h1><small id="crumb"></small></div>
+  </div>
+  <div class="strip" aria-hidden="true"></div>
+</header>
+<main id="app"><div class="skeleton"></div><div class="skeleton"></div></main>
+
+<script>
+(function(){
+var $=function(id){return document.getElementById(id)},esc=D.esc,app=$("app");
+$("school").textContent=SITE.name;
+var id=new URLSearchParams(location.search).get("id")||"";
+
+function fail(t){app.innerHTML='<div class="empty">'+esc(t)+'<div style="margin-top:12px"><a class="btn ghost" href="./">العودة إلى الدروس</a></div></div>'}
+if(!id||!D.apiOn()){fail("هذا الدرس غير موجود.");return}
+
+D.lessons().then(function(list){
+ var l=list.filter(function(x){return x.id===id})[0];
+ if(!l){fail("هذا الدرس غير موجود أو حُذف.");return}
+ var s=D.subj(l.subject),y=D.YEARS[l.year-1];
+ document.title=l.title+" · "+SITE.name;
+ $("crumb").textContent=(y?y.name:"")+" · "+(s?s.n:"");
+ $("back").href="./#y"+l.year+"-"+l.subject;
+
+ var o='<section class="head"><span class="where">'+esc(y?y.name:"")+' · '+esc(s?s.n:"")+(l.term?' · '+D.TERMS[l.term-1]:'')+'</span><h2>'+esc(l.title)+'</h2>'
+  +'<div class="meta">'+(l.teacher?'<span>الأستاذ(ة): '+esc(l.teacher)+'</span><span>·</span>':'')+'<span>'+D.fmt(l.date)+'</span>'+(D.isNew(l.date)?'<span class="pill new">جديد</span>':'')+'</div></section>';
+
+ if(l.text)o+='<section class="card"><div class="explain">'+esc(l.text)+'</div></section>';
+
+ if(l.videos.length){o+='<section><div class="sec-t">'+(l.videos.length>1?"الفيديوهات":"الفيديو")+'</div><div class="stack">';
+  l.videos.forEach(function(v,i){var yt=D.ytId(v),dr=D.driveId(v);
+   if(yt)o+='<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/'+yt+'?rel=0" title="فيديو '+(i+1)+'" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe></div>';
+   else if(dr)o+='<div class="video"><iframe src="https://drive.google.com/file/d/'+dr+'/preview" title="فيديو '+(i+1)+'" loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe></div>';
+   else if(/^https:\/\//i.test(v))o+='<div class="card vlink"><span class="pill video">رابط</span><a href="'+esc(v)+'" target="_blank" rel="noopener" style="overflow-wrap:anywhere;color:var(--brick-ink)">افتح الفيديو ↗</a></div>'});
+  o+='</div></section>'}
+
+ if(l.files.length){o+='<section><div class="sec-t">'+(l.files.length>1?"الملفات":"الملف")+'</div><div class="stack">';
+  l.files.forEach(function(f,i){var open=i===0&&(f.kind==="pdf"||f.kind==="image");
+   o+='<div class="file" data-i="'+i+'"><div class="fh"><span class="pill pdf">'+esc(D.KINDS[f.kind]||"ملف")+'</span><span class="nm"><b>'+esc(f.name)+'</b><small>'+(f.size?D.size(f.size):'')+'</small></span>'
+    +'<div class="acts"><button class="btn sm" data-a="toggle" data-i="'+i+'" aria-expanded="'+open+'">'+(open?"إخفاء":"اعرض")+'</button><a class="btn ghost sm" href="'+esc(D.fileDownload(f))+'" target="_blank" rel="noopener">تحميل ⤓</a></div></div>'
+    +'<div class="fb" id="fb'+i+'"'+(open?'':' hidden')+'>'+(open?body(f):'')+'</div></div>'});
+  o+='</div></section>'}
+
+ if(!l.text&&!l.videos.length&&!l.files.length)o+='<div class="empty">هذا الدرس لا يحتوي محتوى بعد.</div>';
+ app.innerHTML=o;
+ app.addEventListener("click",function(ev){var b=ev.target.closest('[data-a="toggle"]');if(!b)return;var i=+b.dataset.i,box=$("fb"+i),f=l.files[i];
+  if(box.hidden){if(!box.innerHTML)box.innerHTML=body(f);box.hidden=false;b.textContent="إخفاء";b.setAttribute("aria-expanded","true")}
+  else{box.hidden=true;b.textContent="اعرض";b.setAttribute("aria-expanded","false")}});
+}).catch(function(){fail("تعذّر تحميل الدرس. تحقّق من اتصالك بالإنترنت ثم أعد فتح الصفحة.")});
+
+function body(f){
+ if(f.kind==="image")return'<img src="'+esc(D.fileImage(f))+'" alt="'+esc(f.name)+'" loading="lazy">';
+ return'<iframe src="'+esc(D.filePreview(f))+'" title="'+esc(f.name)+'" loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe>';
+}
+})();
+</script>
+</body>
+</html>

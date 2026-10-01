@@ -15,18 +15,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
 <link rel="stylesheet" href="style.css">
-<script>
-/* ============================================================
-   الإعدادات
-   ============================================================ */
-var SCHOOL_NAME  = "متوسطة الشهيد بلعكرمي أعمر";
-var SCHOOL_DATES = "1918 - 1961";
-var SCHOOL_PLACE = "البيض";
-/* رابط جدول Google Sheets: الصق رابط الجدول العادي (بعد مشاركته «أي شخص لديه الرابط»)
-   أو رابط «النشر على الويب» بصيغة CSV. اتركه فارغًا لاستعمال ملف lessons.csv */
-var SHEET_URL = "";
-/* ============================================================ */
-</script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>var SCHOOL_NAME=SITE.name,SCHOOL_DATES=SITE.dates,SCHOOL_PLACE=SITE.place,SHEET_URL=SITE.sheetUrl||"";</script>
 </head>
 <body>
 <header class="facade">
@@ -70,7 +61,7 @@ var SHEET_URL = "";
   <div class="strip" aria-hidden="true"></div>
   <div class="in">
     <span><b id="fschool">متوسطة الشهيد بلعكرمي أعمر</b> · <span id="fplace">البيض</span></span>
-    <a href="poster.html">ملصق QR للأقسام</a>
+    <span style="display:flex;gap:16px;flex-wrap:wrap"><a href="teacher.html">فضاء الأساتذة</a><a href="poster.html">ملصق QR للأقسام</a></span>
   </div>
 </footer>
 
@@ -139,7 +130,16 @@ function fromRows(rows){if(!rows.length)return[];
 function byNewest(a,b){return(b.date||"").localeCompare(a.date||"")||((a.order!=null&&b.order!=null)?a.order-b.order:0)||b.id.localeCompare(a.id)}
 function count(y,s){return lessons.filter(function(l){return l.year===y&&(!s||l.subject===s)}).length}
 
-function card(l,showWhere){var k=kind(l.url),meta=[],s=subj(l.subject);
+function bitsOf(l){var b=[];if(l.files.length)b.push('<span class="pill pdf">'+(l.files.length===1?"ملف":l.files.length===2?"ملفان":l.files.length+" ملفات")+'</span>');if(l.videos.length)b.push('<span class="pill video">'+(l.videos.length===1?"فيديو":l.videos.length+" فيديو")+'</span>');if(!b.length)b.push('<span class="pill link">شرح</span>');return b.join("")}
+function tcard(l,showWhere){var meta=[],s=subj(l.subject);
+ if(l.teacher)meta.push("الأستاذ(ة): "+esc(l.teacher));if(l.date)meta.push(fmt(l.date));
+ return'<article class="lesson">'
+  +(showWhere?'<span class="where">'+esc(YEARS[l.year-1].name)+' · '+esc(s.n)+'</span>':"")
+  +'<div class="row"><h4>'+esc(l.title)+'</h4><span class="tags">'+(isNew(l.date)?'<span class="pill new">جديد</span>':"")+bitsOf(l)+'</span></div>'
+  +(meta.length?'<div class="meta">'+meta.map(function(x){return"<span>"+x+"</span>"}).join("<span>·</span>")+'</div>':"")
+  +(l.text?'<p class="note excerpt">'+esc(l.text)+'</p>':"")
+  +'<a class="open" href="lesson.html?id='+encodeURIComponent(l.apiId)+'">افتح الدرس</a></article>'}
+function card(l,showWhere){if(l.src==="api")return tcard(l,showWhere);var k=kind(l.url),meta=[],s=subj(l.subject);
  if(l.teacher)meta.push("الأستاذ(ة): "+esc(l.teacher));if(l.date)meta.push(fmt(l.date));
  return'<article class="lesson">'
   +(showWhere?'<span class="where">'+esc(YEARS[l.year-1].name)+' · '+esc(s.n)+'</span>':"")
@@ -157,12 +157,12 @@ function renderYears(){var o="";
 function renderLatest(){var L=lessons.slice().sort(byNewest).slice(0,3),el=$("latest");
  if(!L.length||ui.subj||ui.q){el.hidden=true;return}
  el.hidden=false;el.innerHTML='<div class="sec-h" style="margin-bottom:8px"><h2>آخر الدروس</h2></div><div class="minis">'+L.map(function(l){var k=kind(l.url);
-  return'<a class="mini" href="'+esc(openHref(l))+'"'+(isLocal(l.url)?'':' target="_blank" rel="noopener"')+'><span class="mt"><b>'+esc(l.title)+'</b><small>'+esc(YEARS[l.year-1].name)+' · '+esc(subj(l.subject).n)+(l.date?' · '+fmt(l.date):'')+'</small></span>'
-   +(isNew(l.date)?'<span class="pill new">جديد</span>':'<span class="pill '+k+'">'+KIND[k]+'</span>')+'</a>'}).join("")+'</div>'}
+  var inSite=l.src==="api"||isLocal(l.url);return'<a class="mini" href="'+esc(l.src==="api"?"lesson.html?id="+encodeURIComponent(l.apiId):openHref(l))+'"'+(inSite?'':' target="_blank" rel="noopener"')+'><span class="mt"><b>'+esc(l.title)+'</b><small>'+esc(YEARS[l.year-1].name)+' · '+esc(subj(l.subject).n)+(l.date?' · '+fmt(l.date):'')+'</small></span>'
+   +(isNew(l.date)?'<span class="pill new">جديد</span>':l.src==="api"?bitsOf(l):'<span class="pill '+k+'">'+KIND[k]+'</span>')+'</a>'}).join("")+'</div>'}
 
 function renderView(){var o="",yname=YEARS[ui.year-1].name;
  if(!loaded){$("view").innerHTML='<div class="list"><div class="skeleton"></div><div class="skeleton"></div></div>';return}
- if(ui.q){var q=norm(ui.q),R=lessons.filter(function(l){return l.year===ui.year&&norm(l.title+" "+l.note+" "+l.teacher+" "+subj(l.subject).n).indexOf(q)>=0}).sort(byNewest);
+ if(ui.q){var q=norm(ui.q),R=lessons.filter(function(l){return l.year===ui.year&&norm(l.title+" "+l.note+" "+(l.text||"")+" "+l.teacher+" "+subj(l.subject).n).indexOf(q)>=0}).sort(byNewest);
   o='<div class="sec-h"><h2>نتائج البحث في '+yname+'</h2></div>';
   o+=R.length?'<div class="list" style="margin-top:10px">'+R.map(function(l){return card(l,true)}).join("")+'</div>':'<div class="empty" style="margin-top:10px">لا يوجد درس بهذا الاسم في '+yname+'.</div>';
  }else if(!ui.subj){
@@ -201,6 +201,8 @@ function load(u,tag){return fetch(u,{cache:"no-store"}).then(function(r){if(!r.o
  .then(function(t){if(/^\s*<!doctype|^\s*<html/i.test(t))throw 0;return fromRows(parseCSV(t)).map(function(l){l.id=tag+l.id;return l})})}
 render();
 var jobs=[load("lessons.csv?t="+Date.now(),"a")];if(sheetUrl())jobs.push(load(sheetUrl(),"b"));
+if(D.apiOn())jobs.push(D.lessons().then(function(L){return L.map(function(x){return{src:"api",apiId:x.id,id:"c"+String(x.ts||0).padStart(15,"0"),year:+x.year,subject:x.subject,term:+x.term||0,
+ title:x.title,text:x.text||"",note:"",url:"",teacher:x.teacher||"",date:x.date||"",order:null,files:x.files||[],videos:x.videos||[]}}).filter(function(l){return l.year>=1&&l.year<=4&&subj(l.subject)})}));
 Promise.all(jobs.map(function(j){return j.then(function(v){return{ok:true,v:v}},function(){return{ok:false,v:[]}})})).then(function(rs){
  lessons=[].concat.apply([],rs.map(function(r){return r.v}));loaded=true;
  if(rs.every(function(r){return!r.ok}))$("error").innerHTML='<div class="msg" role="status">تعذّر تحميل الدروس. تحقّق من اتصالك بالإنترنت ثم أعد فتح الصفحة.</div>';
