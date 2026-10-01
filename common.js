@@ -103,16 +103,16 @@ var D = (function () {
       return j.lessons;
     });
   }
-  /* درس واحد بشرحه الكامل. الخادم القديم لا يعرف هذا الطلب، فنرجع حينها إلى القائمة الكاملة. */
+  /* درس واحد بشرحه الكامل (خادم الإصدار 2). إن فشل الطلب لأي سبب — خادم قديم لا يعرفه
+     (Google يرسل صفحته بدون إذن قراءة عبر المواقع فيبدو كخطأ شبكة)، أو زحام — نرجع إلى القائمة. */
   function lesson(id) {
-    return getJson("api=lesson&id=" + encodeURIComponent(id), 3).then(function (j) {
+    function fromList() { return lessons().then(function (L) { return L.filter(function (x) { return x.id === id; })[0] || null; }); }
+    return getJson("api=lesson&id=" + encodeURIComponent(id), 1).then(function (j) {
       if (j.ok) return j.lesson;
+      if (j.error === "NOT_FOUND" && j.v === undefined) return fromList();
       if (j.error === "NOT_FOUND") return null;
-      var e = new Error(j.error || "SERVER"); e.code = j.error || "SERVER"; throw e;
-    }, function (e) {
-      if (e && e.code === "UNSUPPORTED") return lessons().then(function (L) { return L.filter(function (x) { return x.id === id; })[0] || null; });
-      throw e;
-    });
+      return fromList();
+    }, fromList);
   }
 
   return { SUBJ:SUBJ, YEARS:YEARS, TERMS:TERMS, KINDS:KINDS, subj:subj, esc:esc, fmt:fmt, isNew:isNew, size:size, errText:errText,

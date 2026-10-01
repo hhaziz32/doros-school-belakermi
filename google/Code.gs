@@ -96,7 +96,7 @@ function doGet(e) {
     if (p.api === "lessons") return json_({ ok: true, v: 2, lessons: publicList_() });
     if (p.api === "lesson") {
       var l = publicLesson_(String(p.id || ""));
-      return json_(l ? { ok: true, v: 2, lesson: l } : { ok: false, error: "NOT_FOUND" });
+      return json_(l ? { ok: true, v: 2, lesson: l } : { ok: false, v: 2, error: "NOT_FOUND" });
     }
   } catch (err) { return json_({ ok: false, error: errCode_(err) }); }
   return HtmlService.createHtmlOutput('<p dir="rtl" style="font:16px sans-serif">خادم دروس ' + SCHOOL + ' يعمل ✓</p>');
