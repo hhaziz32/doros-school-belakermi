@@ -45,22 +45,17 @@ var D = (function () {
       .then(function (r) { return r.json(); }, function () { var e = new Error("NETWORK"); e.code = "NETWORK"; throw e; })
       .then(function (j) { if (!j || !j.ok) { var e = new Error((j && j.error) || "SERVER"); e.code = (j && j.error) || "SERVER"; throw e; } return j; });
   }
-  /* رفع ملف مع نسبة التقدّم */
-  function upload(code, file, onProgress) {
+  /* رفع ملف. ملاحظة: لا نتتبّع نسبة التقدّم لأن ذلك يجعل المتصفح يرسل طلب فحص (preflight)
+     يرفضه خادم Google، فيفشل الرفع. نستعمل طلبًا بسيطًا (text/plain) يقبله الخادم. */
+  function upload(code, file) {
     return new Promise(function (ok, bad) {
       var rd = new FileReader();
       rd.onerror = function () { var e = new Error("FILE"); e.code = "SERVER"; bad(e); };
-      rd.onload = function () {
-        var b64 = String(rd.result).split(",")[1] || "";
-        var x = new XMLHttpRequest(); x.open("POST", SITE.apiUrl);
-        x.upload.onprogress = function (ev) { if (ev.lengthComputable && onProgress) onProgress(ev.loaded / ev.total); };
-        x.onload = function () { var j; try { j = JSON.parse(x.responseText); } catch (e) { j = null; }
-          if (j && j.ok) ok(j.file); else { var e = new Error((j && j.error) || "SERVER"); e.code = (j && j.error) || "SERVER"; bad(e); } };
-        x.onerror = function () { var e = new Error("NETWORK"); e.code = "NETWORK"; bad(e); };
-        x.send(JSON.stringify({ action: "upload", code: code, file: { name: file.name, type: mime(file), data: b64 } }));
-      };
+      rd.onload = function () { ok(String(rd.result).split(",")[1] || ""); };
       rd.readAsDataURL(file);
-    });
+    }).then(function (b64) {
+      return call({ action: "upload", code: code, file: { name: file.name, type: mime(file), data: b64 } });
+    }).then(function (j) { return j.file; });
   }
   var EXT = { pdf:"application/pdf", jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp",
     doc:"application/msword", docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -114,7 +114,7 @@ function drawFiles(){var el=$("flist");if(!el)return;
  el.innerHTML=S.form.files.map(function(x,i){var name=x.blob?x.blob.name:x.file.name,sz=x.blob?x.blob.size:x.file.size,kind=x.blob?kindOf(x.blob):x.file.kind;
   var big=x.blob&&x.blob.size>20*1048576;
   return'<div class="frow"><span class="pill pdf">'+esc(D.KINDS[kind]||"ملف")+'</span><span class="nm"><b>'+esc(name)+'</b><small>'+D.size(sz)+(big?' · <span style="color:var(--danger)">أكبر من 20 م.ب</span>':x.state==="done"?' · مرفوع':x.state==="up"?' · جاري الرفع…':'')+'</small>'
-   +(x.state==="up"?'<span class="bar"><i style="width:'+Math.round(x.p*100)+'%"></i></span>':'')+'</span>'
+   +(x.state==="up"?'<span class="bar ind"><i></i></span>':'')+'</span>'
    +(S.busy?'':'<button type="button" class="x" data-a="rmf" data-i="'+i+'" aria-label="حذف الملف">×</button>')+'</div>'}).join("")}
 function kindOf(b){var t=D.mime(b);return t==="application/pdf"?"pdf":/^image\//.test(t)?"image":/word/.test(t)?"word":/powerpoint|presentation/.test(t)?"slides":/^audio\//.test(t)?"audio":"file"}
 
@@ -141,7 +141,7 @@ function publish(){if(S.busy)return;var f=readForm();
  var todo=f.files.filter(function(x){return x.state!=="done"}),n=0;
  var chain=Promise.resolve();
  todo.forEach(function(x){chain=chain.then(function(){n++;x.state="up";x.p=0;status("رفع الملف "+n+" من "+todo.length+"…");drawFiles();
-  return D.upload(S.code,x.blob,function(p){x.p=p;drawFiles()}).then(function(file){x.state="done";x.file=file;delete x.blob;drawFiles()})})});
+  return D.upload(S.code,x.blob).then(function(file){x.state="done";x.file=file;delete x.blob;drawFiles()})})});
  chain.then(function(){status("جاري النشر…");
   return D.call({action:"save",code:S.code,lesson:{id:f.id,year:f.year,subject:f.subject,term:f.term,title:f.title,text:f.text,
    files:f.files.map(function(x){return x.file}),videos:vids}})})
