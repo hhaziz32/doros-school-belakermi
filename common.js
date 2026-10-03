@@ -9,6 +9,8 @@ var D = (function () {
   var YEARS = [{n:1,name:"الأولى متوسط"},{n:2,name:"الثانية متوسط"},{n:3,name:"الثالثة متوسط"},{n:4,name:"الرابعة متوسط"}];
   var TERMS = ["الفصل الأول","الفصل الثاني","الفصل الثالث"];
   var KINDS = {pdf:"PDF",image:"صورة",word:"Word",slides:"عرض",audio:"صوت",file:"ملف"};
+  /* نوع المحتوى (خادم الإصدار 3). الدروس القديمة بدون نوع = «درس» */
+  var TYPES = [{k:"lesson",n:"درس"},{k:"ex",n:"تمارين"},{k:"devoir",n:"فرض"},{k:"exam",n:"اختبار"},{k:"corr",n:"تصحيح"},{k:"bem",n:"موضوع BEM"},{k:"bemc",n:"تصحيح BEM"}];
   var ERRORS = {
     AUTH: "الرمز غير صحيح أو موقوف. تأكد منه أو اطلبه من مدير الموقع.",
     FORBIDDEN: "هذا الإجراء خاص بصاحب الدرس أو بالمدير.",
@@ -24,6 +26,19 @@ var D = (function () {
     SERVER: "حدث خطأ في الخادم. أعد المحاولة بعد قليل."
   };
 
+  function typeName(k) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].k === k) return TYPES[i].n; return "درس"; }
+  function typeOf(l) { var t = l && l.type; for (var i = 0; i < TYPES.length; i++) if (TYPES[i].k === t) return t; return "lesson"; }
+  /* ترتيب المقاطع حسب أول رقم فيها: «المقطع 2» قبل «المقطع 10» */
+  function unitKey(u) { var m = String(u || "").replace(/[٠-٩]/g, function (c) { return "٠١٢٣٤٥٦٧٨٩".indexOf(c); }).match(/\d+/); return m ? +m[0] : 9999; }
+  function today() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function activeNews(list) { var t = today(); return (Array.isArray(list) ? list : []).filter(function (n) { return n && n.title && (!n.until || n.until >= t); }); }
+  /* مشاركة رابط: قائمة المشاركة في الهاتف إن وُجدت، وإلا واتساب */
+  function waLink(text, url) { return "https://wa.me/?text=" + encodeURIComponent(text + "\n" + url); }
+  function share(text, url) {
+    if (navigator.share) return navigator.share({ title: text, text: text, url: url }).then(function () { return "shared"; }, function () { return "cancel"; });
+    window.open(waLink(text, url), "_blank", "noopener"); return Promise.resolve("wa");
+  }
+  function siteUrl(path) { return new URL(path || "./", location.href).href; }
   function subj(k) { for (var i = 0; i < SUBJ.length; i++) if (SUBJ[i].k === k) return SUBJ[i]; return null; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function fmt(d) { var p = String(d || "").split("-"); return p.length === 3 ? (+p[2]) + "/" + (+p[1]) + "/" + p[0] : ""; }
@@ -67,7 +82,8 @@ var D = (function () {
   /* ---- القراءة: محاولات متكررة بفواصل عشوائية + نسخة محفوظة في الهاتف ----
      إذا كان الخادم مشغولًا (زحام)، نعيد المحاولة بعد ثوانٍ عشوائية حتى لا يعود الجميع في اللحظة نفسها،
      ونعرض آخر قائمة محفوظة في هاتف التلميذ خلال ذلك. */
-  var CK = "doros-lessons-v1";
+  var CK = "doros-lessons-v1", lastNews = null;
+  function news() { if (lastNews) return lastNews; var c = cached(); return c && Array.isArray(c.news) ? c.news : []; }
   function getUrl(q) { return SITE.apiUrl + (SITE.apiUrl.indexOf("?") >= 0 ? "&" : "?") + q + "&t=" + Date.now(); }
   function wait(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
   function getJson(q, tries) {
@@ -99,7 +115,8 @@ var D = (function () {
     if (!apiOn()) return Promise.resolve([]);
     return getJson("api=lessons", 3).then(function (j) {
       if (!j.ok) { var e = new Error(j.error || "SERVER"); e.code = j.error || "SERVER"; throw e; }
-      try { localStorage.setItem(CK, JSON.stringify({ at: Date.now(), lessons: j.lessons })); } catch (e) {}
+      lastNews = Array.isArray(j.news) ? j.news : null;
+      try { localStorage.setItem(CK, JSON.stringify({ at: Date.now(), lessons: j.lessons, news: j.news || [], v: j.v || 1 })); } catch (e) {}
       return j.lessons;
     });
   }
@@ -115,7 +132,21 @@ var D = (function () {
     }, fromList);
   }
 
-  return { SUBJ:SUBJ, YEARS:YEARS, TERMS:TERMS, KINDS:KINDS, subj:subj, esc:esc, fmt:fmt, isNew:isNew, size:size, errText:errText,
+  /* تطبيق قابل للتثبيت: تسجيل عامل الخدمة (يحفظ الصفحات والدروس للعمل بدون إنترنت) */
+  var installEvt = null, installCbs = [];
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); installEvt = e; installCbs.forEach(function (f) { f(); }); });
+  function canInstall() { return !!installEvt; }
+  function onInstallable(f) { installCbs.push(f); if (installEvt) f(); }
+  function install() { if (!installEvt) return Promise.resolve(false); var e = installEvt; installEvt = null; e.prompt(); return e.userChoice.then(function (c) { return c && c.outcome === "accepted"; }); }
+  function standalone() { return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
+  function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+
+  return { SUBJ:SUBJ, YEARS:YEARS, TERMS:TERMS, KINDS:KINDS, TYPES:TYPES, subj:subj, esc:esc, fmt:fmt, isNew:isNew, size:size, errText:errText,
+    typeName:typeName, typeOf:typeOf, unitKey:unitKey, today:today, activeNews:activeNews, waLink:waLink, share:share, siteUrl:siteUrl,
     ytId:ytId, driveId:driveId, filePreview:filePreview, fileDownload:fileDownload, fileImage:fileImage,
-    apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached };
+    apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached, news:news,
+    canInstall:canInstall, onInstallable:onInstallable, install:install, standalone:standalone, isIOS:isIOS };
 })();

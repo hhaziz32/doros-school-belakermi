@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>الدرس · متوسطة الشهيد بلعكرمي أعمر</title>
 <meta name="theme-color" content="#24272C">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23B23F1C'/%3E%3Crect x='14' y='16' width='36' height='34' fill='%2324272C'/%3E%3Cpath d='M20 44 L32 24 L44 44 Z' fill='%23E2BC63'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
@@ -62,8 +63,11 @@ function draw(l,stale){
  $("crumb").textContent=(y?y.name:"")+" · "+(s?s.n:"");
  $("back").href="./#y"+l.year+"-"+l.subject;
 
- var o='<section class="head"><span class="where">'+esc(y?y.name:"")+' · '+esc(s?s.n:"")+(l.term?' · '+D.TERMS[l.term-1]:'')+'</span><h2>'+esc(l.title)+'</h2>'
-  +'<div class="meta">'+(l.teacher?'<span>الأستاذ(ة): '+esc(l.teacher)+'</span><span>·</span>':'')+'<span>'+D.fmt(l.date)+'</span>'+(D.isNew(l.date)?'<span class="pill new">جديد</span>':'')+'</div></section>';
+ var tp=D.typeOf(l),url=D.siteUrl("lesson.html?id="+encodeURIComponent(l.id)),stext=l.title+" — "+(s?s.n:"")+" · "+(y?y.name:"");
+ var o='<section class="head"><span class="where">'+esc(y?y.name:"")+' · '+esc(s?s.n:"")+(l.term?' · '+D.TERMS[l.term-1]:'')+(l.unit?' · '+esc(l.unit):'')+'</span><h2>'+esc(l.title)+'</h2>'
+  +'<div class="meta">'+(tp!=="lesson"?'<span class="pill t-'+tp+'">'+esc(D.typeName(tp))+'</span>':'')+(l.teacher?'<span>الأستاذ(ة): '+esc(l.teacher)+'</span><span>·</span>':'')+'<span>'+D.fmt(l.date)+'</span>'+(D.isNew(l.date)?'<span class="pill new">جديد</span>':'')+'</div>'
+  +'<div class="sharebar">'+(navigator.share?'<button class="btn sm" type="button" data-a="share">مشاركة</button>':'')
+  +'<a class="btn sm wa" href="'+esc(D.waLink(stext,url))+'" target="_blank" rel="noopener">واتساب</a><button class="btn quiet sm" type="button" data-a="copy">نسخ الرابط</button></div></section>';
 
  if(l.text)o+='<section class="card"><div class="explain">'+esc(l.text)+'</div></section>';
 
@@ -84,7 +88,11 @@ function draw(l,stale){
  if(!l.text&&!l.videos.length&&!l.files.length)o+='<div class="empty">هذا الدرس لا يحتوي محتوى بعد.</div>';
  if(stale)o='<div class="msg" role="status">الخادم مشغول الآن، والمعروض نسخة محفوظة في هاتفك'+(l.more?' (الشرح مختصر)':'')+'. أعد فتح الدرس بعد قليل.</div>'+o;
  app.innerHTML=o;
- app.addEventListener("click",function(ev){var b=ev.target.closest('[data-a="toggle"]');if(!b)return;var i=+b.dataset.i,box=$("fb"+i),f=l.files[i];
+ app.addEventListener("click",function(ev){
+  var sb=ev.target.closest('[data-a="share"]');if(sb){D.share(stext,url);return}
+  var cb=ev.target.closest('[data-a="copy"]');if(cb){var done=function(){cb.textContent="تم النسخ ✓";setTimeout(function(){cb.textContent="نسخ الرابط"},1800)};
+   if(navigator.clipboard)navigator.clipboard.writeText(url).then(done,function(){prompt("انسخ الرابط:",url)});else prompt("انسخ الرابط:",url);return}
+  var b=ev.target.closest('[data-a="toggle"]');if(!b)return;var i=+b.dataset.i,box=$("fb"+i),f=l.files[i];
   if(box.hidden){if(!box.innerHTML)box.innerHTML=body(f);box.hidden=false;b.textContent="إخفاء";b.setAttribute("aria-expanded","true")}
   else{box.hidden=true;b.textContent="اعرض";b.setAttribute("aria-expanded","false")}});
 }

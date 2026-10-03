@@ -1,5 +1,5 @@
 // خادم فضاء الأساتذة — متوسطة الشهيد بلعكرمي أعمر
-// الإصدار 2
+// الإصدار 3 (نوع المحتوى، المقطع، لوحة الإعلانات)
 //
 // طريقة التركيب (مرة واحدة):
 //   1. الصق هذا الملف كاملًا في مشروع جديد على script.google.com
@@ -34,9 +34,12 @@ var ALLOWED = {
   "audio/mpeg": "audio", "audio/mp4": "audio", "audio/x-m4a": "audio", "audio/aac": "audio", "audio/wav": "audio"
 };
 var SUBJECTS = ["ar", "math", "fr", "en", "sci", "phy", "hist", "isl", "civ", "amz", "art", "mus", "info"];
-var L_HEAD = ["id", "date", "year", "subject", "term", "title", "text", "files", "videos", "teacher", "teacherId", "status", "updated"];
+var L_HEAD = ["id", "date", "year", "subject", "term", "title", "text", "files", "videos", "teacher", "teacherId", "status", "updated", "type", "unit"];
+var N_HEAD = ["id", "date", "title", "text", "until", "author", "status", "pinned"];
+var TYPES = ["lesson", "ex", "devoir", "exam", "corr", "bem", "bemc"];  // درس، تمارين، فرض، اختبار، تصحيح، موضوع BEM، تصحيح BEM
+var VERSION = 3;
 var T_HEAD = ["id", "name", "subjects", "code", "role", "active"];
-var L_SHEET = "الدروس", T_SHEET = "الأساتذة";
+var L_SHEET = "الدروس", T_SHEET = "الأساتذة", N_SHEET = "الإعلانات";
 
 // ---------------- الإعداد ----------------
 
@@ -50,9 +53,14 @@ function setup() {
   if (lsh.getLastRow() === 0) lsh.appendRow(L_HEAD);
   var tsh = ss.getSheetByName(T_SHEET) || ss.insertSheet(T_SHEET);
   if (tsh.getLastRow() === 0) tsh.appendRow(T_HEAD);
+  var nsh = ss.getSheetByName(N_SHEET) || ss.insertSheet(N_SHEET);
+  if (nsh.getLastRow() === 0) nsh.appendRow(N_HEAD);
+  headers_(lsh, L_HEAD);
+  asText_(lsh, L_HEAD, ["title", "text", "unit"]);
+  asText_(nsh, N_HEAD, ["title", "text", "until"]);
   ss.getSheets().forEach(function (s) {
     var n = s.getName();
-    if (n !== L_SHEET && n !== T_SHEET && s.getLastRow() === 0 && ss.getSheets().length > 2) ss.deleteSheet(s);
+    if (n !== L_SHEET && n !== T_SHEET && n !== N_SHEET && s.getLastRow() === 0 && ss.getSheets().length > 3) ss.deleteSheet(s);
   });
 
   var folderId = p.getProperty("FOLDER"), folder = null;
@@ -93,10 +101,10 @@ function cleanup() {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
-    if (p.api === "lessons") return json_({ ok: true, v: 2, lessons: publicList_() });
+    if (p.api === "lessons") { var pub = publicList_(); return json_({ ok: true, v: VERSION, lessons: pub.list, news: pub.news }); }
     if (p.api === "lesson") {
       var l = publicLesson_(String(p.id || ""));
-      return json_(l ? { ok: true, v: 2, lesson: l } : { ok: false, v: 2, error: "NOT_FOUND" });
+      return json_(l ? { ok: true, v: VERSION, lesson: l } : { ok: false, v: VERSION, error: "NOT_FOUND" });
     }
   } catch (err) { return json_({ ok: false, error: errCode_(err) }); }
   return HtmlService.createHtmlOutput('<p dir="rtl" style="font:16px sans-serif">خادم دروس ' + SCHOOL + ' يعمل ✓</p>');
@@ -107,7 +115,7 @@ function doPost(e) {
     var req = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     var who = auth_(req.code), out;
     switch (req.action) {
-      case "login": out = { name: who.name, role: who.role, subjects: who.subjects }; break;
+      case "login": out = { name: who.name, role: who.role, subjects: who.subjects, v: VERSION }; break;
       case "upload": out = { file: upload_(who, req.file) }; break;
       case "save": out = { id: save_(who, req.lesson) }; break;
       case "mine": out = { lessons: mine_(who) }; break;
@@ -116,6 +124,9 @@ function doPost(e) {
       case "addTeacher": admin_(who); out = { teacher: addTeacher_(req.name, req.subjects) }; break;
       case "removeTeacher": admin_(who); removeTeacher_(req.id); out = {}; break;
       case "resetCode": admin_(who); out = { code: resetCode_(req.id) }; break;
+      case "news": admin_(who); out = { news: newsAll_() }; break;
+      case "newsSave": admin_(who); out = { id: newsSave_(who, req.item) }; break;
+      case "newsDelete": admin_(who); newsDelete_(req.id); out = {}; break;
       default: throw new Error("BAD_ACTION");
     }
     out.ok = true;
@@ -223,6 +234,8 @@ function save_(who, L) {
   if (!L) throw new Error("BAD_INPUT");
   var year = parseInt(L.year, 10), term = parseInt(L.term, 10) || 0;
   var subject = String(L.subject || ""), title = clean_(L.title, 140), text = String(L.text || "").replace(/\r\n/g, "\n").slice(0, 6000).trim();
+  var type = TYPES.indexOf(String(L.type)) >= 0 ? String(L.type) : "lesson", unit = clean_(L.unit, 60);
+  if (type === "bem" || type === "bemc") year = 4;   // شهادة التعليم المتوسط تخص الرابعة متوسط
   if (!(year >= 1 && year <= 4) || SUBJECTS.indexOf(subject) < 0 || term < 0 || term > 3 || !title) throw new Error("BAD_INPUT");
 
   var videos = (Array.isArray(L.videos) ? L.videos : []).map(function (v) { return String(v || "").trim(); })
@@ -233,6 +246,7 @@ function save_(who, L) {
   var lock = lock_();
   try {
     var sh = sheet_(L_SHEET), now = Date.now(), all = lessons_(), old = null;
+    headers_(sh, L_HEAD);
     if (L.id) {
       old = all.filter(function (x) { return x.id === String(L.id) && x.status === "published"; })[0];
       if (!old) throw new Error("NOT_FOUND");
@@ -252,13 +266,13 @@ function save_(who, L) {
       var keep = files.map(function (f) { return f.id; });
       trashUnused_(old.files.filter(function (f) { return keep.indexOf(f.id) < 0; }), all, old.id);
       sh.getRange(old._row, 1, 1, L_HEAD.length).setValues([[old.id, old.ts || now, year, subject, term, safe_(title), safe_(text),
-        JSON.stringify(files), JSON.stringify(videos), safe_(old.teacher), old.teacherId, "published", now]]);
+        JSON.stringify(files), JSON.stringify(videos), safe_(old.teacher), old.teacherId, "published", now, type, safe_(unit)]]);
       rebuild_();
       return old.id;
     }
     var id = newId_();
     sh.appendRow([id, now, year, subject, term, safe_(title), safe_(text), JSON.stringify(files), JSON.stringify(videos),
-      safe_(who.name), who.id, "published", now]);
+      safe_(who.name), who.id, "published", now, type, safe_(unit)]);
     rebuild_();
     return id;
   } finally { lock.releaseLock(); }
@@ -288,14 +302,15 @@ function lessons_() {
     return {
       id: String(r.id), ts: Number(r.date) || 0, date: day_(r.date), year: Number(r.year), subject: String(r.subject), term: Number(r.term) || 0,
       title: String(r.title), text: String(r.text || ""), files: parse_(r.files), videos: parse_(r.videos),
-      teacher: String(r.teacher || ""), teacherId: String(r.teacherId || ""), status: String(r.status), _row: r._row
+      teacher: String(r.teacher || ""), teacherId: String(r.teacherId || ""), status: String(r.status), _row: r._row,
+      type: TYPES.indexOf(String(r.type)) >= 0 ? String(r.type) : "lesson", unit: String(r.unit || "")
     };
   });
 }
 
 function view_(l, withOwner) {
   var o = { id: l.id, ts: l.ts, date: l.date, year: l.year, subject: l.subject, term: l.term, title: l.title, text: l.text,
-            files: l.files, videos: l.videos, teacher: l.teacher };
+            files: l.files, videos: l.videos, teacher: l.teacher, type: l.type, unit: l.unit };
   if (withOwner) o.teacherId = l.teacherId;
   return o;
 }
@@ -305,14 +320,70 @@ function mine_(who) {
     .map(function (l) { return view_(l, true); }).sort(function (a, b) { return b.ts - a.ts; });
 }
 
+// ---------------- لوحة الإعلانات (المدير فقط) ----------------
+
+function newsSheet_() {
+  var id = PropertiesService.getScriptProperties().getProperty("SS");
+  if (!id) throw new Error("NOT_SETUP");
+  var ss = SpreadsheetApp.openById(id), sh = ss.getSheetByName(N_SHEET);
+  if (!sh) { sh = ss.insertSheet(N_SHEET); sh.appendRow(N_HEAD); asText_(sh, N_HEAD, ["title", "text", "until"]); }
+  return sh;
+}
+function newsRows_() {
+  return rows_(newsSheet_(), N_HEAD).map(function (r) {
+    return { id: String(r.id), ts: Number(r.date) || 0, date: day_(r.date), title: String(r.title), text: String(r.text || ""),
+             until: dayOrEmpty_(r.until), author: String(r.author || ""), status: String(r.status),
+             pinned: r.pinned === true || String(r.pinned).toUpperCase() === "TRUE", _row: r._row };
+  });
+}
+function newsView_(n) { return { id: n.id, date: n.date, title: n.title, text: n.text, until: n.until, pinned: n.pinned }; }
+function newsAll_() {
+  return newsRows_().filter(function (n) { return n.status === "published"; })
+    .sort(function (a, b) { return (b.pinned - a.pinned) || (b.ts - a.ts); }).map(newsView_);
+}
+function activeNews_() {
+  var today = day_(Date.now());
+  return newsAll_().filter(function (n) { return !n.until || n.until >= today; }).slice(0, 10);
+}
+function newsSave_(who, it) {
+  if (!it) throw new Error("BAD_INPUT");
+  var title = clean_(it.title, 120), text = String(it.text || "").replace(/\r\n/g, "\n").slice(0, 2000).trim();
+  var until = /^\d{4}-\d{2}-\d{2}$/.test(String(it.until || "")) ? String(it.until) : "", pinned = it.pinned === true;
+  if (!title) throw new Error("BAD_INPUT");
+  var lock = lock_();
+  try {
+    var sh = newsSheet_(), now = Date.now();
+    if (it.id) {
+      var old = newsRows_().filter(function (n) { return n.id === String(it.id) && n.status === "published"; })[0];
+      if (!old) throw new Error("NOT_FOUND");
+      sh.getRange(old._row, 1, 1, N_HEAD.length).setValues([[old.id, old.ts || now, safe_(title), safe_(text), until, safe_(old.author), "published", pinned]]);
+      rebuild_();
+      return old.id;
+    }
+    var id = newId_();
+    sh.appendRow([id, now, safe_(title), safe_(text), until, safe_(who.name), "published", pinned]);
+    rebuild_();
+    return id;
+  } finally { lock.releaseLock(); }
+}
+function newsDelete_(id) {
+  var lock = lock_();
+  try {
+    var n = newsRows_().filter(function (x) { return x.id === String(id) && x.status === "published"; })[0];
+    if (!n) throw new Error("NOT_FOUND");
+    newsSheet_().getRange(n._row, N_HEAD.indexOf("status") + 1).setValue("deleted");
+    rebuild_();
+  } finally { lock.releaseLock(); }
+}
+
 // ---------------- القراءة العامة (سريعة، من الذاكرة المؤقتة) ----------------
 // كل زيارة تلميذ تُقرأ من الذاكرة المؤقتة ولا تلمس الجدول، مهما كثرت الدروس.
 // القائمة تحمل مقتطفًا من الشرح فقط، والشرح الكامل يُطلب عند فتح الدرس.
 
 function publicList_() {
-  var hit = cacheGet_("list");
-  if (hit) { refreshIfOld_(); return JSON.parse(hit); }
-  return rebuild_().list;
+  var hit = cacheGet_("list"), nhit = hit && cacheGet_("news");
+  if (hit && nhit) { refreshIfOld_(); return { list: JSON.parse(hit), news: JSON.parse(nhit) }; }
+  var b = rebuild_(); return { list: b.list, news: b.news };
 }
 
 function publicLesson_(id) {
@@ -335,12 +406,14 @@ function rebuild_() {
     list.push(v);
   });
   list.sort(function (a, b) { return b.ts - a.ts; });
+  var news = activeNews_();
   try {
+    cachePut_("news", JSON.stringify(news));
     cachePut_("texts", JSON.stringify(texts));
     cachePut_("list", JSON.stringify(list));
     CacheService.getScriptCache().put("built", String(Date.now()), CACHE_TTL);
   } catch (e) {}
-  return { list: list, texts: texts };
+  return { list: list, texts: texts, news: news };
 }
 
 // تجديد الذاكرة قبل انتهاء صلاحيتها (6 ساعات)، مرة واحدة فقط وبدون انتظار الآخرين
@@ -397,6 +470,23 @@ function rows_(sh, head) {
     head.forEach(function (k, j) { o[k] = r[j]; });
     return o;
   }).filter(function (o) { return o.id !== "" && o.id != null; });
+}
+// يضيف عناوين الأعمدة الجديدة إلى جدول قديم (ترقية تلقائية بدون فقدان بيانات)
+function headers_(sh, head) {
+  var cur = sh.getRange(1, 1, 1, head.length).getValues()[0];
+  for (var i = 0; i < head.length; i++) if (cur[i] !== head[i]) {
+    sh.getRange(1, 1, 1, head.length).setValues([head]);
+    asText_(sh, head, ["title", "text", "unit", "until"]);
+    return;
+  }
+}
+// أعمدة نصية: حتى لا يحوّل Google عنوانًا مثل «1/5» إلى تاريخ
+function asText_(sh, head, names) {
+  names.forEach(function (n) { var c = head.indexOf(n); if (c >= 0) sh.getRange(1, c + 1, sh.getMaxRows(), 1).setNumberFormat("@"); });
+}
+function dayOrEmpty_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, "yyyy-MM-dd");
+  v = String(v || ""); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
 }
 function trash_(id) { var f = ownFile_(id); if (f) try { f.setTrashed(true); } catch (e) {} }
 function lock_() { var l = LockService.getScriptLock(); l.waitLock(20000); return l; }

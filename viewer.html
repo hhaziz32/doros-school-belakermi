@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>عرض الدرس · متوسطة الشهيد بلعكرمي أعمر</title>
 <meta name="theme-color" content="#24272C">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23B23F1C'/%3E%3Crect x='14' y='16' width='36' height='34' fill='%2324272C'/%3E%3Cpath d='M20 44 L32 24 L44 44 Z' fill='%23E2BC63'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
@@ -54,6 +55,7 @@
   <button type="button" id="zout" aria-label="تصغير">−</button>
   <span id="pnum">1 / 1</span>
   <button type="button" id="zin" aria-label="تكبير">+</button>
+  <button type="button" id="shr" aria-label="مشاركة الدرس" title="مشاركة" style="width:auto;padding:0 12px;font-size:.88rem">مشاركة</button>
 </nav>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -80,7 +82,7 @@ if(!window.pdfjsLib){fail("تعذّر تشغيل عارض الدروس. يمكن
 pdfjsLib.GlobalWorkerOptions.workerSrc=CDN+"pdf.worker.min.js";
 var ZOOMS=[1,1.5,2],zi=0,doc=null,slots=[],DPR=Math.min(window.devicePixelRatio||1,2);
 
-pdfjsLib.getDocument({url:file,cMapUrl:CDN+"cmaps/",cMapPacked:true,standardFontDataUrl:CDN+"standard_fonts/"}).promise.then(function(d){
+pdfjsLib.getDocument({url:file,disableRange:true,disableStream:true,cMapUrl:CDN+"cmaps/",cMapPacked:true,standardFontDataUrl:CDN+"standard_fonts/"}).promise.then(function(d){
  doc=d;var N=d.numPages;$("info").textContent=N===1?"صفحة واحدة":N===2?"صفحتان":N+(N<=10?" صفحات":" صفحة");
  var chain=Promise.resolve(),box=$("pages");
  for(var i=1;i<=d.numPages;i++)(function(n){chain=chain.then(function(){return d.getPage(n)}).then(function(page){
@@ -106,6 +108,10 @@ function updateZoom(){var z=ZOOMS[zi];$("pages").style.maxWidth=z===1?"900px":Ma
  $("pages").style.width=z===1?"100%":Math.round(window.innerWidth*z)+"px";
  $("zout").disabled=zi===0;$("zin").disabled=zi===ZOOMS.length-1;
  requestAnimationFrame(function(){slots.forEach(function(s){if(s.visible)draw(s)})})}
+$("shr").onclick=function(){var u=location.href,t=title;
+ if(navigator.share)navigator.share({title:t,text:t,url:u}).catch(function(){});
+ else window.open("https://wa.me/?text="+encodeURIComponent(t+"\n"+u),"_blank","noopener")};
+if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))navigator.serviceWorker.register("sw.js").catch(function(){});
 $("zin").onclick=function(){if(zi<ZOOMS.length-1){zi++;updateZoom()}};
 $("zout").onclick=function(){if(zi>0){zi--;updateZoom()}};
 var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(updateZoom,200)});

@@ -162,3 +162,37 @@ footer a{color:#fff}
 .bar.ind i{width:35%;animation:none}
 @media (prefers-reduced-motion:no-preference){.bar.ind i{animation:ind 1.1s ease-in-out infinite}@keyframes ind{0%{transform:translateX(0)}100%{transform:translateX(-200%)}}}
 @media (prefers-reduced-motion:reduce){.bar.ind i{width:100%;opacity:.5}}
+
+/* ---------- v3: announcements, BEM, filters, units, install ---------- */
+.news{display:flex;flex-direction:column;gap:8px}
+.nitem{background:var(--surface);border:1px solid var(--line);border-inline-start:4px solid var(--gold);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.nitem.pin{border-inline-start-color:var(--brick-ink);background:color-mix(in srgb,var(--gold) 9%,var(--surface))}
+.nitem .nh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.nitem .nh b{font-weight:600}
+.nitem .nh small{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+.nitem p{margin:0;white-space:pre-line;overflow-wrap:anywhere;font-size:.95rem}
+.bem-banner{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;background:var(--charcoal);color:#fff;border-radius:14px;padding:12px 14px;border:1px solid #000}
+.bem-banner:hover{background:#1a1c20}
+.bem-badge{flex:none;font-family:var(--display);font-weight:700;letter-spacing:.06em;background:var(--gold);color:#2A1F00;border-radius:10px;padding:8px 10px;direction:ltr}
+.bem-banner .bt{flex:1;min-width:0;display:flex;flex-direction:column}
+.bem-banner .bt b{font-family:var(--display);font-size:1.1rem;color:var(--gold)}
+.bem-banner .bt small{color:#C9CCD1;font-size:.82rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:600;font-size:.88rem;color:var(--muted)}
+.chip small{font-weight:500;opacity:.8;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.unit{display:flex;flex-direction:column;gap:10px}
+.unit-h{margin:6px 0 0;font-size:.95rem;font-weight:600;color:var(--brick-ink);display:flex;align-items:center;gap:8px}
+.unit-h::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--brick-ink);opacity:.8;flex:none}
+.more-subj{margin-top:12px}
+.more-subj summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:.92rem;padding-block:6px}
+.more-subj .subjects{margin-top:10px;opacity:.85}
+.pill.t-ex{color:var(--y1)}.pill.t-devoir{color:var(--y2)}.pill.t-exam{color:var(--danger)}.pill.t-corr{color:var(--ok)}
+.pill.t-bem,.pill.t-bemc{background:var(--charcoal);color:var(--gold);border-color:var(--charcoal)}
+.install{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px dashed var(--brick-ink);border-radius:12px;padding:12px 14px}
+.install .it{display:flex;flex-direction:column;min-width:0}
+.install .it b{font-weight:600}
+.install .it small{color:var(--muted);font-size:.84rem}
+.sharebar{display:flex;gap:8px;flex-wrap:wrap}
+.btn.wa{background:#1F8F4E}
+.btn.wa:hover{background:#18763F}

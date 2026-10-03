@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="style.css">
 <script src="config.js"></script>
 <script src="common.js"></script>
+<script src="imgpdf.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
 <style>
   main{gap:18px}
   #pane{display:flex;flex-direction:column;gap:14px}
@@ -42,6 +44,17 @@
   .trow .off{opacity:.55}
   .newcode{display:flex;flex-direction:column;gap:10px;border:2px solid var(--gold);border-radius:12px;padding:14px;background:color-mix(in srgb,var(--gold) 10%,var(--surface))}
   .newcode .mono{font-size:1.5rem;font-weight:700}
+  .photos{border:1px dashed var(--brick-ink);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;background:color-mix(in srgb,var(--brick-ink) 4%,var(--surface))}
+  .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+  .thumb{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;aspect-ratio:3/4}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .thumb .n{position:absolute;top:4px;right:4px;background:var(--charcoal);color:#fff;border-radius:999px;font-size:.75rem;min-width:22px;text-align:center;padding:0 6px}
+  .thumb .tb{position:absolute;inset-inline:0;bottom:0;display:flex;justify-content:space-between;background:rgba(0,0,0,.55)}
+  .thumb .tb button{background:none;border:0;color:#fff;font-size:1rem;width:30px;height:28px;cursor:pointer}
+  .upd{border:2px solid var(--gold);background:color-mix(in srgb,var(--gold) 12%,var(--surface));border-radius:12px;padding:10px 12px;font-size:.92rem}
+  .nrow{display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--line);padding-block:12px}
+  .nrow:last-child{border-bottom:0}
+  .nrow p{margin:0;white-space:pre-line;color:var(--muted);font-size:.92rem}
 </style>
 </head>
 <body>
@@ -64,7 +77,9 @@ function store(){try{return localStorage.getItem("doros-code")||sessionStorage.g
 function remember(c,keep){try{(keep?localStorage:sessionStorage).setItem("doros-code",c)}catch(e){}}
 function forget(){try{localStorage.removeItem("doros-code");sessionStorage.removeItem("doros-code")}catch(e){}}
 function normCode(v){v=String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");return v.length===8?v.slice(0,4)+"-"+v.slice(4):v}
-function blankForm(){var s=(S.me&&S.me.subjects||"").split(",")[0]||"";return{id:null,year:1,subject:s||"ar",term:1,title:"",text:"",files:[],videos:[""]}}
+function blankForm(){var s=(S.me&&S.me.subjects||"").split(",")[0]||"";return{id:null,year:1,subject:s||"ar",term:1,title:"",text:"",files:[],videos:[""],type:"lesson",unit:""}}
+function v3(){return S.me&&S.me.v>=3}
+function isBem(t){return t==="bem"||t==="bemc"}
 function msg(t,ok){S.msg={t:t,ok:!!ok}}
 
 /* ---------- screens ---------- */
@@ -72,11 +87,12 @@ function render(){
  if(!D.apiOn()){app.innerHTML='<div class="card login"><h2>فضاء الأساتذة غير مفعّل بعد</h2><p>على مدير الموقع إكمال الإعداد مرة واحدة. الخطوات في <a href="setup.html">صفحة الإعداد</a>.</p></div>';return}
  if(!S.me){renderLogin();return}
  var o='<div class="who"><div>مرحبًا، <b>'+esc(S.me.name)+'</b>'+(S.me.role==="admin"&&S.me.name.indexOf("مدير")<0?'<span class="role">المدير</span>':'')+'</div><button class="btn quiet sm" data-a="logout">خروج</button></div>';
- o+='<nav class="tabs" role="tablist">'+tab("new",S.form&&S.form.id?"تعديل درس":"درس جديد")+tab("mine",S.me.role==="admin"?"كل الدروس":"دروسي")+(S.me.role==="admin"?tab("team","الأساتذة"):"")+'</nav>';
+ if(S.me.role==="admin"&&!v3())o+='<div class="upd">الخادم على إصدار قديم. حدّث كود الخادم إلى <b>الإصدار 3</b> لتفعيل: نوع المحتوى، المقطع، مواضيع BEM، ولوحة الإعلانات. <a href="setup.html">طريقة التحديث</a></div>';
+ o+='<nav class="tabs" role="tablist">'+tab("new",S.form&&S.form.id?"تعديل درس":"درس جديد")+tab("mine",S.me.role==="admin"?"كل الدروس":"دروسي")+(S.me.role==="admin"?tab("news","الإعلانات")+tab("team","الأساتذة"):"")+'</nav>';
  if(S.msg)o+='<div class="'+(S.msg.ok?"ok-msg":"msg")+'" role="status">'+esc(S.msg.t)+'</div>';
  o+='<section id="pane"></section>';
  app.innerHTML=o;
- if(S.tab==="new")renderForm();else if(S.tab==="mine")renderMine();else renderTeam();
+ if(S.tab==="new")renderForm();else if(S.tab==="mine")renderMine();else if(S.tab==="news")renderNewsAdmin();else renderTeam();
 }
 function tab(k,t){return'<button role="tab" data-a="tab" data-k="'+k+'" aria-selected="'+(S.tab===k)+'">'+t+'</button>'}
 
@@ -85,7 +101,7 @@ function renderLogin(){
   +'<div class="field code"><label for="code">رمز الأستاذ</label><input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-1234" value="'+esc(S.code)+'"></div>'
   +'<label class="check"><input type="checkbox" id="keep" checked> تذكّرني على هذا الهاتف</label>'
   +(S.msg?'<div class="msg">'+esc(S.msg.t)+'</div>':'')
-  +'<button class="btn" id="go"'+(S.busy?" disabled":"")+'>'+(S.busy?"جاري الدخول…":"دخول")+'</button></form>';
+  +'<button class="btn" id="go"'+(S.busy?" disabled":"")+'>'+(S.busy?"جاري الدخول…":"دخول")+'</button><a href="guide.html" style="color:var(--brick-ink);text-align:center;font-size:.92rem">دليل الأستاذ في 4 خطوات</a></form>';
  $("login").onsubmit=function(e){e.preventDefault();login(normCode($("code").value),$("keep").checked)};
 }
 
@@ -93,22 +109,60 @@ function renderForm(){
  if(S.done){$("pane").innerHTML='<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="ok-msg">'+(S.done.edited?"تم حفظ التعديلات.":"تم نشر الدرس. يظهر للتلاميذ خلال دقيقة على الأكثر.")+'</div><div class="actions" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="lesson.html?id='+encodeURIComponent(S.done.id)+'">اعرض الدرس</a><button class="btn ghost" data-a="again">نشر درس آخر</button></div></div>';return}
  var f=S.form||(S.form=blankForm());
  var o='<form class="lesson-form card" id="lf" novalidate>';
- o+='<div class="field"><span class="lab">السنة</span><div class="seg">'+D.YEARS.map(function(y){return'<label><input type="radio" name="year" value="'+y.n+'"'+(+f.year===y.n?" checked":"")+'><span>'+y.name.replace(" متوسط","")+'</span></label>'}).join("")+'</div></div>';
+ if(v3())o+='<div class="field"><label for="type">نوع المحتوى</label><select id="type">'+D.TYPES.map(function(t){return'<option value="'+t.k+'"'+(f.type===t.k?" selected":"")+'>'+t.n+'</option>'}).join("")+'</select></div>';
+ var bem=v3()&&isBem(f.type);
+ o+='<div class="field"><span class="lab">السنة'+(bem?' <small style="color:var(--muted);font-weight:400">(BEM = الرابعة متوسط)</small>':'')+'</span><div class="seg">'+D.YEARS.map(function(y){return'<label><input type="radio" name="year" value="'+y.n+'"'+((bem?y.n===4:+f.year===y.n)?" checked":"")+(bem&&y.n!==4?" disabled":"")+'><span>'+y.name.replace(" متوسط","")+'</span></label>'}).join("")+'</div></div>';
  o+='<div class="grid2"><div class="field"><label for="subject">المادة</label><select id="subject">'+D.SUBJ.map(function(s){return'<option value="'+s.k+'"'+(f.subject===s.k?" selected":"")+'>'+s.n+'</option>'}).join("")+'</select></div>';
  o+='<div class="field"><label for="term">الفصل</label><select id="term">'+D.TERMS.map(function(t,i){return'<option value="'+(i+1)+'"'+(+f.term===i+1?" selected":"")+'>'+t+'</option>'}).join("")+'<option value="0"'+(+f.term===0?" selected":"")+'>بدون تحديد</option></select></div></div>';
- o+='<div class="field"><label for="title">عنوان الدرس</label><input id="title" maxlength="140" value="'+esc(f.title)+'" placeholder="مثال: الدرس 3: الكسور"></div>';
+ if(v3())o+='<div class="field"><label for="unit">'+(bem?"الدورة":"المقطع / الوحدة (اختياري)")+'</label><input id="unit" maxlength="60" list="units" value="'+esc(f.unit)+'" placeholder="'+(bem?"مثال: دورة 2019":"مثال: المقطع 2: الأعداد النسبية")+'"><datalist id="units">'+unitsFor(f).map(function(u){return'<option value="'+esc(u)+'">'}).join("")+'</datalist><p class="hint">'+(bem?"تُرتَّب المواضيع حسب الدورة، الأحدث أولًا.":"الدروس تُجمع تحت مقطعها، بترتيب رقم المقطع.")+'</p></div>';
+ o+='<div class="field"><label for="title">'+(bem?"العنوان":"عنوان الدرس")+'</label><input id="title" maxlength="140" value="'+esc(f.title)+'" placeholder="'+(bem?"مثال: موضوع الرياضيات، دورة 2019":"مثال: الدرس 3: الكسور")+'"></div>';
  o+='<div class="field"><label for="text">الشرح والملاحظات</label><textarea id="text" maxlength="6000" placeholder="اكتب شرح الدرس، أو ملخصًا، أو تمارين وتوجيهات للتلاميذ…">'+esc(f.text)+'</textarea><p class="hint">يظهر كما تكتبه، مع الأسطر والفقرات.</p></div>';
- o+='<div class="field"><span class="lab">الملفات</span><div class="rows" id="flist"></div><button type="button" class="addline" data-a="pick">+ إضافة ملفات</button><input type="file" id="picker" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.ppt,.pptx,.mp3,.m4a,.aac,.wav"><p class="hint">PDF، صور، Word، PowerPoint، أو تسجيل صوتي. حتى 20 م.ب للملف.</p></div>';
+ o+='<div class="field"><span class="lab">الملفات</span><div class="rows" id="flist"></div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="addline" data-a="pick">+ إضافة ملفات</button><button type="button" class="addline" data-a="photos">📷 صور الصفحات ← ملف PDF</button></div>'
+  +'<input type="file" id="picker" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.ppt,.pptx,.mp3,.m4a,.aac,.wav">'
+  +'<div id="photos"></div>'
+  +'<p class="hint">PDF، صور، Word، PowerPoint، أو تسجيل صوتي. حتى 20 م.ب للملف. الصور الكبيرة تُصغَّر تلقائيًا.</p></div>';
  o+='<div class="field"><span class="lab">روابط فيديو</span><div class="rows" id="vlist"></div><button type="button" class="addline" data-a="addv">+ رابط آخر</button><p class="hint">الصق رابط YouTube (ويُفضّل أن يكون «غير مُدرج»).</p></div>';
  o+='<div class="submit"><button class="btn" id="save"'+(S.busy?" disabled":"")+'>'+(f.id?"حفظ التعديلات":"نشر الدرس")+'</button>'+(f.id?'<button type="button" class="btn quiet" data-a="cancelEdit">إلغاء التعديل</button>':'')+'<span class="status" id="status" role="status"></span></div>';
  o+='</form>';
- $("pane").innerHTML=o;drawFiles();drawVideos();
+ $("pane").innerHTML=o;drawFiles();drawVideos();drawPhotos();
+ var ty=$("type");if(ty)ty.onchange=function(){readForm();renderForm()};
+ $("subject").addEventListener("change",refreshUnits);Array.prototype.forEach.call(document.querySelectorAll('input[name="year"]'),function(x){x.addEventListener("change",refreshUnits)});
+ if(v3()&&S.mine===null&&!S._loading)loadMineQuiet();
  $("lf").onsubmit=function(e){e.preventDefault();publish()};
- $("picker").onchange=function(){Array.prototype.forEach.call(this.files,function(file){S.form.files.push({state:"new",blob:file,p:0})});this.value="";drawFiles()};
+ $("picker").onchange=function(){var fs=Array.prototype.slice.call(this.files);this.value="";
+  status(fs.some(function(f){return/^image\//.test(f.type)&&f.size>1.2*1048576})?"جاري تصغير الصور…":"");
+  Promise.all(fs.map(function(f){return window.IMGPDF?IMGPDF.shrink(f):f})).then(function(out){out.forEach(function(file){S.form.files.push({state:"new",blob:file,p:0})});status("");drawFiles()})};
 }
 function readForm(){var f=S.form,y=document.querySelector('input[name="year"]:checked');
  f.year=y?+y.value:1;f.subject=$("subject").value;f.term=+$("term").value;f.title=$("title").value.trim();f.text=$("text").value;
+ if($("type"))f.type=$("type").value;if($("unit"))f.unit=$("unit").value.trim();if(isBem(f.type))f.year=4;
  f.videos=Array.prototype.map.call(document.querySelectorAll("#vlist input"),function(i){return i.value.trim()});return f}
+
+function unitsFor(f){var u=[];(S.mine||[]).forEach(function(l){if(l.subject===f.subject&&(isBem(f.type)?isBem(l.type):l.year===+f.year&&!isBem(l.type))&&l.unit&&u.indexOf(l.unit)<0)u.push(l.unit)});
+ return u.sort(function(a,b){return D.unitKey(a)-D.unitKey(b)})}
+function refreshUnits(){var dl=$("units");if(!dl||!S.form||!$("lf"))return;readForm();dl.innerHTML=unitsFor(S.form).map(function(u){return'<option value="'+esc(u)+'">'}).join("")}
+function loadMineQuiet(){S._loading=true;D.call({action:"mine",code:S.code}).then(function(j){S._loading=false;S.mine=j.lessons;refreshUnits()},function(){S._loading=false})}
+
+/* ---- أداة: صور الصفحات ← ملف PDF واحد مضغوط ---- */
+var PH={open:false,list:[],busy:false};
+function drawPhotos(){var el=$("photos");if(!el)return;if(!PH.open){el.innerHTML="";return}
+ var tot=PH.list.reduce(function(a,x){return a+x.f.size},0);
+ el.innerHTML='<div class="photos"><b>صور صفحات الدرس</b><span class="hint" style="margin:0;color:var(--muted);font-size:.85rem">صوّر الصفحات بالترتيب أو اخترها من المعرض. ستُجمع في ملف PDF واحد صغير الحجم.</span>'
+  +(PH.list.length?'<div class="thumbs">'+PH.list.map(function(x,i){return'<div class="thumb"><img src="'+x.u+'" alt="صفحة '+(i+1)+'"><span class="n">'+(i+1)+'</span><div class="tb"><button type="button" data-a="phUp" data-i="'+i+'" aria-label="قبل">→</button><button type="button" data-a="phRm" data-i="'+i+'" aria-label="حذف">×</button><button type="button" data-a="phDn" data-i="'+i+'" aria-label="بعد">←</button></div></div>'}).join("")+'</div>'
+   +'<small style="color:var(--muted)">'+PH.list.length+' صورة · الحجم الأصلي '+D.size(tot)+'</small>':'')
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost sm" data-a="phAdd">+ إضافة صور</button>'
+  +(PH.list.length?'<button type="button" class="btn sm" data-a="phMake"'+(PH.busy?" disabled":"")+'>'+(PH.busy?"جاري التحويل…":"إنشاء ملف PDF")+'</button>':'')
+  +'<button type="button" class="btn quiet sm" data-a="phClose">إغلاق</button></div>'
+  +'<input type="file" id="phPick" accept="image/*" multiple hidden></div>';
+ $("phPick").onchange=function(){Array.prototype.forEach.call(this.files,function(f){if(/^image\//.test(f.type))PH.list.push({f:f,u:URL.createObjectURL(f)})});this.value="";drawPhotos()}}
+function makePdf(){if(PH.busy||!PH.list.length)return;readForm();PH.busy=true;drawPhotos();
+ var orig=PH.list.reduce(function(a,x){return a+x.f.size},0),name=S.form.title||"صفحات الدرس";
+ IMGPDF.photosToPdf(PH.list.map(function(x){return x.f}),name,function(i,n){status("تحويل الصورة "+i+" من "+n+"…")}).then(function(file){
+  PH.list.forEach(function(x){URL.revokeObjectURL(x.u)});PH={open:false,list:[],busy:false};
+  S.form.files.push({state:"new",blob:file,p:0});drawFiles();drawPhotos();
+  status("تم إنشاء ملف PDF: "+D.size(file.size)+" بدل "+D.size(orig)+".")},
+  function(){PH.busy=false;drawPhotos();status("تعذّر تحويل الصور. جرّب صورًا أقل أو أصغر.")})}
 
 function drawFiles(){var el=$("flist");if(!el)return;
  el.innerHTML=S.form.files.map(function(x,i){var name=x.blob?x.blob.name:x.file.name,sz=x.blob?x.blob.size:x.file.size,kind=x.blob?kindOf(x.blob):x.file.kind;
@@ -128,7 +182,7 @@ function status(t){var s=$("status");if(s)s.textContent=t}
 /* ---------- actions ---------- */
 function login(code,keep){if(!code){msg("اكتب الرمز أولًا.");render();return}
  S.busy=true;S.msg=null;render();
- D.call({action:"login",code:code}).then(function(j){S.code=code;S.me={name:j.name,role:j.role,subjects:j.subjects};remember(code,keep);S.busy=false;S.form=null;S.tab="new";S.msg=null;render()},
+ D.call({action:"login",code:code}).then(function(j){S.code=code;S.me={name:j.name,role:j.role,subjects:j.subjects,v:j.v||2};remember(code,keep);S.busy=false;S.form=null;S.tab="new";S.msg=null;render()},
   function(e){S.busy=false;S.code=code;if(e.code==="AUTH")forget();msg(D.errText(e));render()})}
 
 function publish(){if(S.busy)return;var f=readForm();
@@ -144,7 +198,7 @@ function publish(){if(S.busy)return;var f=readForm();
   return D.upload(S.code,x.blob).then(function(file){x.state="done";x.file=file;delete x.blob;drawFiles()})})});
  chain.then(function(){status("جاري النشر…");
   return D.call({action:"save",code:S.code,lesson:{id:f.id,year:f.year,subject:f.subject,term:f.term,title:f.title,text:f.text,
-   files:f.files.map(function(x){return x.file}),videos:vids}})})
+   files:f.files.map(function(x){return x.file}),videos:vids,type:f.type||"lesson",unit:f.unit||""}})})
  .then(function(j){S.busy=false;S.done={id:j.id,edited:!!f.id};S.form=null;S.mine=null;render();window.scrollTo({top:0})},
   function(e){S.busy=false;f.files.forEach(function(x){if(x.state==="up")x.state="new"});render();status(D.errText(e));if(e.code==="AUTH")logout()})}
 
@@ -153,9 +207,32 @@ function renderMine(){var el=$("pane");if(!S.mine){el.innerHTML='<div class="ske
  if(!S.mine.length){el.innerHTML='<div class="empty">لم تنشر أي درس بعد. ابدأ من «درس جديد».</div>';return}
  el.innerHTML='<div class="card">'+S.mine.map(function(l){var s=D.subj(l.subject);
   var bits=[];if(l.files.length)bits.push(l.files.length===1?"ملف":l.files.length===2?"ملفان":l.files.length+" ملفات");if(l.videos.length)bits.push(l.videos.length===1?"فيديو":l.videos.length+" فيديو");if(l.text)bits.push("شرح");
-  return'<div class="mrow"><h4>'+esc(l.title)+'</h4><div class="meta"><span>'+esc(D.YEARS[l.year-1].name)+' · '+esc(s?s.n:"")+'</span><span>·</span><span>'+D.fmt(l.date)+'</span>'+(S.me.role==="admin"?'<span>·</span><span>'+esc(l.teacher)+'</span>':'')+'<span>·</span><span>'+bits.join("، ")+'</span></div>'
+  var tp=D.typeOf(l);
+  return'<div class="mrow"><h4>'+esc(l.title)+(tp!=="lesson"?' <span class="pill t-'+tp+'">'+esc(D.typeName(tp))+'</span>':'')+'</h4><div class="meta"><span>'+esc(D.YEARS[l.year-1].name)+' · '+esc(s?s.n:"")+(l.unit?' · '+esc(l.unit):'')+'</span><span>·</span><span>'+D.fmt(l.date)+'</span>'+(S.me.role==="admin"?'<span>·</span><span>'+esc(l.teacher)+'</span>':'')+'<span>·</span><span>'+bits.join("، ")+'</span></div>'
    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn ghost sm" href="lesson.html?id='+encodeURIComponent(l.id)+'">عرض</a><button class="btn quiet sm" data-a="edit" data-id="'+esc(l.id)+'">تعديل</button>'
    +(S.confirm===l.id?'<button class="btn danger sm" data-a="delYes" data-id="'+esc(l.id)+'">تأكيد الحذف</button><button class="btn quiet sm" data-a="delNo">إلغاء</button>':'<button class="btn quiet sm" data-a="del" data-id="'+esc(l.id)+'">حذف</button>')+'</div></div>'}).join("")+'</div>'}
+
+/* ---- لوحة الإعلانات (المدير) ---- */
+var NW={list:null,edit:null,confirm:null,busy:false};
+function renderNewsAdmin(){var el=$("pane");
+ if(!v3()){el.innerHTML='<div class="empty">لوحة الإعلانات تحتاج تحديث كود الخادم إلى الإصدار 3. <a href="setup.html">طريقة التحديث</a></div>';return}
+ if(!NW.list){el.innerHTML='<div class="skeleton"></div>';D.call({action:"news",code:S.code}).then(function(j){NW.list=j.news;renderNewsAdmin()},function(e){msg(D.errText(e));render()});return}
+ var e=NW.edit||{title:"",text:"",until:"",pinned:false},t=D.today();
+ var o='<form class="card" id="nf" style="display:flex;flex-direction:column;gap:12px"><h3 style="font-size:1.1rem">'+(e.id?"تعديل إعلان":"إعلان جديد")+'</h3>'
+  +'<div class="field"><label for="ntitle">العنوان</label><input id="ntitle" maxlength="120" value="'+esc(e.title)+'" placeholder="مثال: اختبارات الفصل الأول"></div>'
+  +'<div class="field"><label for="ntext">التفاصيل (اختياري)</label><textarea id="ntext" maxlength="2000" style="min-height:90px" placeholder="مثال: تبدأ يوم الأحد 7 ديسمبر. الرزنامة معلقة في بهو المؤسسة.">'+esc(e.text)+'</textarea></div>'
+  +'<div class="grid2"><div class="field"><label for="nuntil">يختفي بعد تاريخ (اختياري)</label><input id="nuntil" type="date" value="'+esc(e.until)+'" min="'+t+'"></div>'
+  +'<label class="check" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="npin"'+(e.pinned?" checked":"")+'> تثبيت في الأعلى 📌</label></div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn"'+(NW.busy?" disabled":"")+'>'+(e.id?"حفظ التعديل":"نشر الإعلان")+'</button>'+(e.id?'<button type="button" class="btn quiet" data-a="nCancel">إلغاء</button>':'')+'</div></form>';
+ o+='<div class="card"><h3 style="font-size:1.1rem;margin-bottom:6px">الإعلانات المنشورة ('+NW.list.length+')</h3>'+(NW.list.length?NW.list.map(function(n){var gone=n.until&&n.until<t;
+  return'<div class="nrow"'+(gone?' style="opacity:.6"':'')+'><b>'+(n.pinned?'📌 ':'')+esc(n.title)+'</b>'+(n.text?'<p>'+esc(n.text)+'</p>':'')
+   +'<small style="color:var(--muted)">'+D.fmt(n.date)+(n.until?(gone?' · انتهى ':' · يظهر حتى ')+D.fmt(n.until):'')+'</small>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn quiet sm" data-a="nEdit" data-id="'+esc(n.id)+'">تعديل</button>'
+   +(NW.confirm===n.id?'<button class="btn danger sm" data-a="nDelYes" data-id="'+esc(n.id)+'">تأكيد الحذف</button><button class="btn quiet sm" data-a="nDelNo">إلغاء</button>':'<button class="btn quiet sm" data-a="nDel" data-id="'+esc(n.id)+'">حذف</button>')+'</div></div>'}).join(""):'<p style="color:var(--muted);margin:0">لا توجد إعلانات.</p>')+'</div>';
+ el.innerHTML=o;
+ $("nf").onsubmit=function(ev){ev.preventDefault();var title=$("ntitle").value.trim();if(!title){$("ntitle").focus();return}
+  NW.busy=true;D.call({action:"newsSave",code:S.code,item:{id:e.id||null,title:title,text:$("ntext").value,until:$("nuntil").value,pinned:$("npin").checked}})
+   .then(function(){NW.busy=false;NW.edit=null;NW.list=null;msg(e.id?"تم حفظ الإعلان.":"تم نشر الإعلان. يظهر في الصفحة الرئيسية خلال دقيقة.",true);render()},function(er){NW.busy=false;msg(D.errText(er));render()})}}
 
 function renderTeam(){var el=$("pane");
  if(!S.teachers){el.innerHTML='<div class="skeleton"></div>';D.call({action:"teachers",code:S.code}).then(function(j){S.teachers=j.teachers;renderTeam()},function(e){msg(D.errText(e));render()});return}
@@ -177,24 +254,35 @@ function renderTeam(){var el=$("pane");
   S.busy=true;D.call({action:"addTeacher",code:S.code,name:n,subjects:$("tsubj").value}).then(function(j){S.busy=false;S.newTeacher=j.teacher;S.teachers.push(j.teacher);renderTeam()},function(e){S.busy=false;msg(D.errText(e));render()})}}
 
 function invite(t){var u=location.href.split("#")[0].split("?")[0];
- return"السلام عليكم "+t.name+"،\nهذا رمز دخولك إلى فضاء الأساتذة في موقع "+SITE.name+":\n"+t.code+"\nالرابط: "+u+"\nمن هناك تنشر دروسك وملفاتك وروابط الفيديو للتلاميذ."}
+ return"السلام عليكم "+t.name+"،\nهذا رمز دخولك إلى فضاء الأساتذة في موقع "+SITE.name+":\n"+t.code+"\nالرابط: "+u+"\nدليل الاستعمال في 4 خطوات: "+D.siteUrl("guide.html")+"\nمن هناك تنشر دروسك وملفاتك وروابط الفيديو للتلاميذ."}
 function copyText(t,btn){var done=function(){var o=btn.textContent;btn.textContent="تم النسخ ✓";setTimeout(function(){btn.textContent=o},1800)};
  if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,function(){fallback()});else fallback();
  function fallback(){var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();try{document.execCommand("copy");done()}catch(e){}document.body.removeChild(a)}}
 
-function logout(){forget();S.tab="new";S.msg=null;S.confirm=null;S.me=null;S.code="";S.form=null;S.mine=null;S.teachers=null;S.newTeacher=null;S.done=null;render()}
+function logout(){NW={list:null,edit:null,confirm:null,busy:false};forget();S.tab="new";S.msg=null;S.confirm=null;S.me=null;S.code="";S.form=null;S.mine=null;S.teachers=null;S.newTeacher=null;S.done=null;render()}
 
 app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if(!b)return;var a=b.dataset.a;
- if(a==="tab"){if(S.tab==="new"&&$("lf"))readForm();S.tab=b.dataset.k;S.msg=null;S.confirm=null;if(S.tab==="mine")S.mine=null;render()}
+ if(a==="tab"){if(S.tab==="new"&&$("lf"))readForm();S.tab=b.dataset.k;S.msg=null;S.confirm=null;if(S.tab==="mine")S.mine=null;if(S.tab==="news"){NW.list=null;NW.edit=null;NW.confirm=null}render()}
  else if(a==="logout")logout();
  else if(a==="pick")$("picker").click();
+ else if(a==="photos"){if(!window.IMGPDF)return;PH.open=true;drawPhotos();$("phPick").click()}
+ else if(a==="phAdd")$("phPick").click();
+ else if(a==="phClose"){PH.list.forEach(function(x){URL.revokeObjectURL(x.u)});PH={open:false,list:[],busy:false};drawPhotos()}
+ else if(a==="phRm"){var i=+b.dataset.i;URL.revokeObjectURL(PH.list[i].u);PH.list.splice(i,1);drawPhotos()}
+ else if(a==="phUp"||a==="phDn"){var k=+b.dataset.i,j=a==="phUp"?k-1:k+1;if(j>=0&&j<PH.list.length){var tmp=PH.list[k];PH.list[k]=PH.list[j];PH.list[j]=tmp;drawPhotos()}}
+ else if(a==="phMake")makePdf();
+ else if(a==="nEdit"){NW.edit=(NW.list||[]).filter(function(n){return n.id===b.dataset.id})[0]||null;renderNewsAdmin();window.scrollTo({top:0})}
+ else if(a==="nCancel"){NW.edit=null;renderNewsAdmin()}
+ else if(a==="nDel"){NW.confirm=b.dataset.id;renderNewsAdmin()}
+ else if(a==="nDelNo"){NW.confirm=null;renderNewsAdmin()}
+ else if(a==="nDelYes"){b.disabled=true;D.call({action:"newsDelete",code:S.code,id:b.dataset.id}).then(function(){NW.confirm=null;NW.list=null;msg("تم حذف الإعلان.",true);render()},function(er){msg(D.errText(er));render()})}
  else if(a==="rmf"){readForm();S.form.files.splice(+b.dataset.i,1);drawFiles()}
  else if(a==="addv"){readForm();S.form.videos.push("");drawVideos();var ins=document.querySelectorAll("#vlist input");ins[ins.length-1].focus()}
  else if(a==="rmv"){readForm();S.form.videos.splice(+b.dataset.i,1);drawVideos()}
  else if(a==="again"){S.done=null;S.form=null;render()}
  else if(a==="cancelEdit"){S.form=null;S.tab="mine";render()}
  else if(a==="edit"){var l=S.mine.filter(function(x){return x.id===b.dataset.id})[0];if(!l)return;
-  S.form={id:l.id,year:l.year,subject:l.subject,term:l.term,title:l.title,text:l.text,files:l.files.map(function(f){return{state:"done",file:f}}),videos:l.videos.length?l.videos.slice():[""]};
+  S.form={id:l.id,year:l.year,subject:l.subject,term:l.term,title:l.title,text:l.text,files:l.files.map(function(f){return{state:"done",file:f}}),videos:l.videos.length?l.videos.slice():[""],type:D.typeOf(l),unit:l.unit||""};
   S.done=null;S.tab="new";S.msg=null;render();window.scrollTo({top:0})}
  else if(a==="del"){S.confirm=b.dataset.id;renderMine()}
  else if(a==="delNo"){S.confirm=null;S.tab==="team"?renderTeam():renderMine()}
@@ -208,7 +296,7 @@ app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if
 
 S.code=store();
 if(S.code&&D.apiOn()){S.busy=true;app.innerHTML='<div class="skeleton" style="max-width:420px;margin:24px auto"></div>';
- D.call({action:"login",code:S.code}).then(function(j){S.busy=false;S.me={name:j.name,role:j.role,subjects:j.subjects};render()},function(e){S.busy=false;if(e.code==="AUTH")forget();render()})}
+ D.call({action:"login",code:S.code}).then(function(j){S.busy=false;S.me={name:j.name,role:j.role,subjects:j.subjects,v:j.v||2};render()},function(e){S.busy=false;if(e.code==="AUTH")forget();render()})}
 else render();
 })();
 </script>
