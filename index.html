@@ -16,9 +16,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=4">
 <script src="config.js"></script>
-<script src="common.js"></script>
+<script src="common.js?v=4"></script>
 </head>
 <body>
 <header class="facade">
@@ -54,7 +54,7 @@
   <section id="latest" hidden></section>
   <section id="view"><div class="skeleton"></div></section>
   <section class="install" id="install" hidden>
-    <span class="it"><b>ثبّت الموقع في هاتفك</b><small id="installHint">يفتح كتطبيق، والدروس التي فتحتها تبقى متاحة بدون إنترنت.</small></span>
+    <span class="it"><b>ثبّت الموقع في هاتفك</b><small id="installHint">يفتح كتطبيق، والدروس التي فتحتها تبقى متاحة بدون إنترنت. قبل الاختبارات: افتح دروسك مرة واحدة بالإنترنت لتبقى معك.</small></span>
     <button class="btn sm" id="installBtn" type="button">تثبيت</button>
   </section>
   <details class="help">
@@ -99,8 +99,9 @@ function okUrl(u){return safeUrl(u)||isLocal(u)}
 function viewerHref(l){return"viewer.html?f="+encodeURIComponent(l.url)+"&t="+encodeURIComponent(l.title)+"&b=y"+l.year+"-"+l.subject}
 function openHref(l){return l.src==="api"?"lesson.html?id="+encodeURIComponent(l.apiId):isLocal(l.url)?viewerHref(l):l.url}
 function inSite(l){return l.src==="api"||isLocal(l.url)}
-function norm(s){return String(s||"").replace(/[ً-ْـ]/g,"").replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/\s+/g," ").trim().toLowerCase()}
-function digit(s){return String(s).replace(/[٠-٩]/g,function(c){return"٠١٢٣٤٥٦٧٨٩".indexOf(c)})}
+/* البحث: بدون تشكيل، أ/إ/آ = ا، ة = ه، ى = ي، و«٣» = «3» */
+function norm(s){return D.fold(s).replace(/\s+/g," ").trim()}
+function digit(s){return D.digits(s)}
 
 /* ---- الدروس المرفوعة على الموقع نفسه (ملف lessons.csv) ---- */
 function parseYear(v){v=norm(digit(v));var d=v.match(/[1-4]/);if(d)return +d[0];
@@ -199,33 +200,42 @@ function renderView(){var o="",yname=YEARS[ui.year-1].name;
   if(present.length>1)o+='<div class="chips" role="group" aria-label="نوع المحتوى"><button class="chip" data-act="type" data-t="" aria-pressed="'+(!ui.type)+'">الكل <small>'+all.length+'</small></button>'
    +present.map(function(t){var c=all.filter(function(l){return l.type===t.k}).length;return'<button class="chip" data-act="type" data-t="'+t.k+'" aria-pressed="'+(ui.type===t.k)+'">'+t.n+' <small>'+c+'</small></button>'}).join("")+'</div>';
   var list=ui.type?all.filter(function(l){return l.type===ui.type}):all;
-  var termed=list.some(function(l){return l.term>0});
-  o+='<div style="display:flex;flex-direction:column;gap:18px">';
-  [1,2,3,0].forEach(function(t){var T=list.filter(function(l){return l.term===t});if(!T.length)return;
-   o+='<section class="term">'+(termed?'<h3>'+(t?TERMS[t-1]:"دروس أخرى")+'</h3>':'');
-   var withUnit=T.filter(function(l){return l.unit});
-   if(!withUnit.length){o+=T.slice().sort(byNewest).map(function(l){return card(l,false)}).join("")}
-   else{
-    /* حسب المقطع: المقاطع بترتيبها، والدروس داخل المقطع بترتيب نشرها */
-    var units=[];withUnit.forEach(function(l){if(units.indexOf(l.unit)<0)units.push(l.unit)});
-    units.sort(function(a,b){return D.unitKey(a)-D.unitKey(b)||a.localeCompare(b,"ar")});
-    units.forEach(function(u){o+='<div class="unit"><h4 class="unit-h">'+esc(u)+'</h4>'+T.filter(function(l){return l.unit===u}).sort(byCourse).map(function(l){return card(l,false)}).join("")+'</div>'});
-    var rest=T.filter(function(l){return!l.unit});if(rest.length)o+='<div class="unit"><h4 class="unit-h">دروس أخرى</h4>'+rest.sort(byNewest).map(function(l){return card(l,false)}).join("")+'</div>';
-   }
-   o+='</section>'});
-  o+='</div>';
+  /* دروس السنة الدراسية الحالية أولًا، ودروس السنوات الماضية في «أرشيف» مطويّ */
+  var ys=D.yearStart(),cur=list.filter(function(l){return!l.date||l.date>=ys||l.type==="bem"||l.type==="bemc"}),old=list.filter(function(l){return cur.indexOf(l)<0});
+  if(cur.length)o+=terms(cur);
+  else o+='<div class="empty">لم تُنشر دروس هذه السنة الدراسية بعد. دروس السنوات الماضية في الأرشيف أدناه.</div>';
+  if(old.length)o+='<details class="archive" style="margin-top:18px"><summary>📦 أرشيف السنوات الماضية ('+old.length+')</summary><div class="list">'+old.slice().sort(byNewest).map(function(l){return card(l,false)}).join("")+'</div></details>';
  }
  $("view").innerHTML=o}
 
+function terms(list){var o="",termed=list.some(function(l){return l.term>0});
+ o+='<div style="display:flex;flex-direction:column;gap:18px">';
+ [1,2,3,0].forEach(function(t){var T=list.filter(function(l){return l.term===t});if(!T.length)return;
+  o+='<section class="term">'+(termed?'<h3>'+(t?TERMS[t-1]:"دروس أخرى")+'</h3>':'');
+  var withUnit=T.filter(function(l){return l.unit});
+  if(!withUnit.length){o+=T.slice().sort(byNewest).map(function(l){return card(l,false)}).join("")}
+  else{
+   /* حسب المقطع: المقاطع بترتيبها (رقم أو «الأول، الثاني…»)، والدروس داخل المقطع بترتيب نشرها */
+   var units=[];withUnit.forEach(function(l){if(units.indexOf(l.unit)<0)units.push(l.unit)});
+   units.sort(function(a,b){return D.unitKey(a)-D.unitKey(b)||a.localeCompare(b,"ar")});
+   units.forEach(function(u){o+='<div class="unit"><h4 class="unit-h">'+esc(u)+'</h4>'+T.filter(function(l){return l.unit===u}).sort(byCourse).map(function(l){return card(l,false)}).join("")+'</div>'});
+   var rest=T.filter(function(l){return!l.unit});if(rest.length)o+='<div class="unit"><h4 class="unit-h">دروس أخرى</h4>'+rest.sort(byNewest).map(function(l){return card(l,false)}).join("")+'</div>';
+  }
+  o+='</section>'});
+ return o+'</div>'}
+
 function render(){renderNews();renderYears();renderLatest();renderView();$("q").placeholder="ابحث عن درس في "+YEARS[ui.year-1].name+"…"}
-function go(){history.replaceState(null,"","#y"+ui.year+(ui.subj?"-"+ui.subj:""));render()}
+/* كل اختيار يُضاف إلى سجل التصفح: زر «رجوع» في الهاتف يعود خطوة داخل الموقع بدل الخروج منه */
+function go(){var h="#y"+ui.year+(ui.subj?"-"+ui.subj:"");if(location.hash!==h)history.pushState(null,"",h);render()}
+function fromHash(){var m=(location.hash||"").slice(1).match(/^y([1-4])(?:-([a-z]+))?$/);
+ if(m){ui.year=+m[1];ui.subj=m[2]&&subj(m[2])?m[2]:null}else ui.subj=null;ui.type="";render()}
 document.addEventListener("click",function(ev){var b=ev.target.closest("[data-act]");if(!b)return;var a=b.getAttribute("data-act");
  if(a==="year"){ui.year=+b.getAttribute("data-y");ui.subj=null;ui.type="";try{localStorage.setItem("doros-year",ui.year)}catch(e){}}
  else if(a==="subj"){ui.subj=b.getAttribute("data-k");ui.type="";ui.q="";$("q").value="";$("view").scrollIntoView({behavior:"smooth",block:"start"})}
  else if(a==="back"){ui.subj=null;ui.type=""}
  else if(a==="type"){ui.type=b.getAttribute("data-t")||"";renderView();return}
  go()});
-window.addEventListener("hashchange",function(){var m=(location.hash||"").slice(1).match(/^y([1-4])(?:-([a-z]+))?$/);if(!m)return;ui.year=+m[1];ui.subj=m[2]&&subj(m[2])?m[2]:null;render()});
+window.addEventListener("popstate",fromHash);window.addEventListener("hashchange",fromHash);
 $("q").addEventListener("input",function(){ui.q=this.value.trim();if(ui.q)ui.subj=null;renderLatest();renderView()});
 
 /* ---- التحميل: الدروس المحلية + دروس الأساتذة (نسخة الهاتف فورًا، ثم الخادم) ---- */
@@ -237,7 +247,7 @@ function fetchApi(force){return D.lessons(force).then(function(L){apiL=mapApi(L)
  if(!navigator.onLine)notice(saved?"أنت بدون إنترنت. المعروض آخر نسخة محفوظة في هاتفك.":"أنت بدون إنترنت. اتصل ثم أعد المحاولة.",true);
  else if(saved)notice("الخادم مشغول الآن، والمعروض هو آخر نسخة محفوظة في هاتفك.",true);
  else notice("تعذّر تحميل دروس الأساتذة (الخادم مشغول أو الاتصال ضعيف).",true)})}
-render();
+render();D.inAppNote(document.querySelector("main"));
 fetch("lessons.csv?t="+Date.now(),{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(t){return fromRows(parseCSV(t))},function(){return[]})
  .then(function(L){base=L;merge();loaded=true;render()});
 if(D.apiOn())fetchApi();
@@ -245,7 +255,7 @@ if(D.apiOn())fetchApi();
 /* ---- التثبيت كتطبيق ---- */
 if(!D.standalone()){
  D.onInstallable(function(){$("install").hidden=false});
- if(D.isIOS()){$("install").hidden=false;$("installBtn").hidden=true;$("installHint").textContent="في Safari: اضغط زر المشاركة ⬆️ ثم «إضافة إلى الشاشة الرئيسية».";}
+ if(D.isIOS()){$("install").hidden=false;$("installBtn").hidden=true;$("installHint").textContent="في Safari: اضغط زر المشاركة ⬆️ ثم «إضافة إلى الشاشة الرئيسية». قبل الاختبارات: افتح دروسك مرة واحدة بالإنترنت لتبقى معك.";}
  $("installBtn").onclick=function(){D.install().then(function(ok){if(ok)$("install").hidden=true})};
 }
 })();

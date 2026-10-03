@@ -23,13 +23,29 @@ var D = (function () {
     NOT_SETUP: "الخادم لم يُجهَّز بعد. على المدير تشغيل setup مرة واحدة.",
     QUOTA: "بلغت حد الرفع لهذا اليوم (300 م.ب). أكمل غدًا، أو ضع الفيديوهات على YouTube بدل رفعها.",
     NETWORK: "تعذّر الاتصال بالخادم. تحقق من الإنترنت ثم أعد المحاولة.",
+    BUSY: "الخادم مشغول بنشر أساتذة آخرين في اللحظة نفسها. أعد المحاولة بعد لحظات.",
+    ABORT: "أُلغي النشر. الملفات التي رُفعت محفوظة، واضغط «نشر» للإكمال.",
+    BAD_ACTION: "هذه الميزة تحتاج تحديث كود الخادم إلى أحدث إصدار (صفحة الإعداد).",
     SERVER: "حدث خطأ في الخادم. أعد المحاولة بعد قليل."
   };
 
   function typeName(k) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].k === k) return TYPES[i].n; return "درس"; }
   function typeOf(l) { var t = l && l.type; for (var i = 0; i < TYPES.length; i++) if (TYPES[i].k === t) return t; return "lesson"; }
-  /* ترتيب المقاطع حسب أول رقم فيها: «المقطع 2» قبل «المقطع 10» */
-  function unitKey(u) { var m = String(u || "").replace(/[٠-٩]/g, function (c) { return "٠١٢٣٤٥٦٧٨٩".indexOf(c); }).match(/\d+/); return m ? +m[0] : 9999; }
+  /* الأرقام العربية المشرقية (٠-٩) والفارسية (۰-۹) ← 0-9 */
+  function digits(s) { return String(s == null ? "" : s).replace(/[٠-٩]/g, function (c) { return "٠١٢٣٤٥٦٧٨٩".indexOf(c); }).replace(/[۰-۹]/g, function (c) { return "۰۱۲۳۴۵۶۷۸۹".indexOf(c); }); }
+  /* توحيد الكتابة للبحث والمقارنة: أ إ آ ← ا، ة ← ه، ى ← ي، بدون تشكيل */
+  function fold(s) { return digits(s).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآٱ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي"); }
+  var ORD = [["الحادي عشر", 11], ["الحاديه عشر", 11], ["الثاني عشر", 12], ["الثانيه عشر", 12], ["الاول", 1], ["الاولي", 1], ["الثاني", 2], ["الثانيه", 2],
+    ["الثالث", 3], ["الثالثه", 3], ["الرابع", 4], ["الرابعه", 4], ["الخامس", 5], ["الخامسه", 5], ["السادس", 6], ["السادسه", 6], ["السابع", 7], ["السابعه", 7],
+    ["الثامن", 8], ["الثامنه", 8], ["التاسع", 9], ["التاسعه", 9], ["العاشر", 10], ["العاشره", 10]];
+  /* ترتيب المقاطع: أول رقم فيها («المقطع 2» قبل «المقطع 10»)، وإلا أول عدد ترتيبي («المقطع الثاني») */
+  function unitKey(u) {
+    var s = fold(u), m = s.match(/\d+/);
+    if (m) return +m[0];
+    var best = -1, val = 9999, len = 0;
+    ORD.forEach(function (o) { var i = s.indexOf(o[0]); if (i >= 0 && (best < 0 || i < best || (i === best && o[0].length > len))) { best = i; val = o[1]; len = o[0].length; } });
+    return val;
+  }
   function today() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   function activeNews(list) { var t = today(); return (Array.isArray(list) ? list : []).filter(function (n) { return n && n.title && (!n.until || n.until >= t); }); }
   /* مشاركة رابط: قائمة المشاركة في الهاتف إن وُجدت، وإلا واتساب */
@@ -43,7 +59,7 @@ var D = (function () {
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function fmt(d) { var p = String(d || "").split("-"); return p.length === 3 ? (+p[2]) + "/" + (+p[1]) + "/" + p[0] : ""; }
   function isNew(d) { if (!d) return false; var t = Date.parse(d); return t && (Date.now() - t) < 8 * 864e5 && t <= Date.now() + 864e5; }
-  function size(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " م.ب" : Math.max(1, Math.round(n / 1024)) + " ك.ب"; }
+  function size(n) { return n >= 1073741824 ? (n / 1073741824).toFixed(1) + " غ.ب" : n > 1048576 ? (n / 1048576).toFixed(1) + " م.ب" : Math.max(1, Math.round(n / 1024)) + " ك.ب"; }
   function errText(e) { return ERRORS[(e && e.code) || "SERVER"] || ERRORS.SERVER; }
 
   function ytId(u) {
@@ -56,21 +72,25 @@ var D = (function () {
   function fileImage(f) { return "https://drive.google.com/thumbnail?id=" + encodeURIComponent(f.id) + "&sz=w1600"; }
 
   function apiOn() { return !!(window.SITE && SITE.apiUrl); }
-  function call(payload) {
-    return fetch(SITE.apiUrl, { method: "POST", body: JSON.stringify(payload) })
-      .then(function (r) { return r.json(); }, function () { var e = new Error("NETWORK"); e.code = "NETWORK"; throw e; })
+  function call(payload, signal, body) {
+    return fetch(SITE.apiUrl, { method: "POST", body: body || JSON.stringify(payload), signal: signal })
+      .then(function (r) { return r.json().catch(function () { var e = new Error("BUSY"); e.code = "BUSY"; throw e; }); }, function (x) { var c = x && x.name === "AbortError" ? "ABORT" : "NETWORK", e = new Error(c); e.code = c; throw e; })
       .then(function (j) { if (!j || !j.ok) { var e = new Error((j && j.error) || "SERVER"); e.code = (j && j.error) || "SERVER"; throw e; } return j; });
   }
   /* رفع ملف. ملاحظة: لا نتتبّع نسبة التقدّم لأن ذلك يجعل المتصفح يرسل طلب فحص (preflight)
      يرفضه خادم Google، فيفشل الرفع. نستعمل طلبًا بسيطًا (text/plain) يقبله الخادم. */
-  function upload(code, file) {
+  /* الجسم يُبنى قطعًا في Blob بدل JSON.stringify على نص كبير: نسخ أقل في ذاكرة الهواتف البسيطة */
+  function upload(code, file, signal) {
     return new Promise(function (ok, bad) {
       var rd = new FileReader();
       rd.onerror = function () { var e = new Error("FILE"); e.code = "SERVER"; bad(e); };
-      rd.onload = function () { ok(String(rd.result).split(",")[1] || ""); };
+      rd.onload = function () { var s = String(rd.result); ok(s.slice(s.indexOf(",") + 1)); };
       rd.readAsDataURL(file);
     }).then(function (b64) {
-      return call({ action: "upload", code: code, file: { name: file.name, type: mime(file), data: b64 } });
+      var head = JSON.stringify({ action: "upload", code: code, file: { name: file.name, type: mime(file), data: "" } });
+      var body = new Blob([head.slice(0, -3), b64, head.slice(-3)], { type: "text/plain;charset=UTF-8" });   /* نفس رأس الطلب النصي العادي: طلب بسيط بدون فحص مسبق */
+      b64 = null;
+      return call(null, signal, body);
     }).then(function (j) { return j.file; });
   }
   var EXT = { pdf:"application/pdf", jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp",
@@ -142,6 +162,19 @@ var D = (function () {
     }, fromList);
   }
 
+  /* متصفح داخل تطبيق (فيسبوك، ماسنجر، إنستغرام، تيك توك، سناب): التحميل وعرض الملفات فيه ضعيف */
+  function inApp() { return /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger|Snapchat|musical_ly|BytedanceWebview|\bLine\//i.test(navigator.userAgent || ""); }
+  function inAppNote(el) {
+    if (!el || !inApp()) return;
+    try { if (sessionStorage.getItem("doros-inapp")) return; } catch (e) {}
+    var d = document.createElement("div"); d.className = "msg inapp"; d.setAttribute("role", "status");
+    d.innerHTML = '<span>أنت تفتح الموقع داخل تطبيق (فيسبوك، ماسنجر…). إذا لم تُفتح الملفات أو لم تُحمَّل، اضغط ⋮ أو ••• في الأعلى ثم «فتح في المتصفح» (Chrome).</span><button type="button" aria-label="إغلاق">×</button>';
+    d.querySelector("button").onclick = function () { d.parentNode && d.parentNode.removeChild(d); try { sessionStorage.setItem("doros-inapp", "1"); } catch (e) {} };
+    el.insertBefore(d, el.firstChild);
+  }
+  /* بداية السنة الدراسية الحالية (1 أوت): ما نُشر قبلها يذهب إلى «الأرشيف» */
+  function yearStart() { var d = new Date(), y = d.getFullYear(); return (d.getMonth() + 1 >= 8 ? y : y - 1) + "-08-01"; }
+
   /* تطبيق قابل للتثبيت: تسجيل عامل الخدمة (يحفظ الصفحات والدروس للعمل بدون إنترنت) */
   var installEvt = null, installCbs = [];
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
@@ -155,8 +188,9 @@ var D = (function () {
   function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
 
   return { SUBJ:SUBJ, YEARS:YEARS, TERMS:TERMS, KINDS:KINDS, TYPES:TYPES, subj:subj, esc:esc, fmt:fmt, isNew:isNew, size:size, errText:errText,
-    typeName:typeName, typeOf:typeOf, unitKey:unitKey, today:today, activeNews:activeNews, waLink:waLink, share:share, siteUrl:siteUrl,
+    typeName:typeName, typeOf:typeOf, unitKey:unitKey, digits:digits, fold:fold, today:today, activeNews:activeNews, waLink:waLink, share:share, siteUrl:siteUrl,
     ytId:ytId, driveId:driveId, filePreview:filePreview, fileDownload:fileDownload, fileImage:fileImage,
     apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached, news:news, invalidate:invalidate,
+    inApp:inApp, inAppNote:inAppNote, yearStart:yearStart,
     canInstall:canInstall, onInstallable:onInstallable, install:install, standalone:standalone, isIOS:isIOS };
 })();

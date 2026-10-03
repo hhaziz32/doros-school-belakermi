@@ -146,6 +146,8 @@ footer a{color:#fff}
 .seg label{position:relative;border:1px solid var(--line);border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer;font-size:.9rem;background:var(--surface)}
 .seg input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .seg input:checked+span{color:var(--brick-ink);font-weight:700}
+/* «.on» يضعه الموقع بنفسه: للمتصفحات القديمة التي لا تعرف :has (قاعدة منفصلة، وإلا تُهمل كلها) */
+.seg label.on{border-color:var(--brick-ink);background:rgba(178,63,28,.08);background:color-mix(in srgb,var(--brick-ink) 8%,var(--surface))}
 .seg label:has(input:checked){border-color:var(--brick-ink);background:color-mix(in srgb,var(--brick-ink) 8%,var(--surface))}
 .seg label:has(input:focus-visible){outline:3px solid var(--gold);outline-offset:2px}
 .rows{display:flex;flex-direction:column;gap:8px}
@@ -196,3 +198,14 @@ footer a{color:#fff}
 .sharebar{display:flex;gap:8px;flex-wrap:wrap}
 .btn.wa{background:#1F8F4E}
 .btn.wa:hover{background:#18763F}
+
+/* عناوين وشروح بلغات مختلفة (فرنسية، إنجليزية): كل فقرة تأخذ اتجاه لغتها */
+.lesson h4,.lesson .note,.mini b,.nitem b,.nitem p,.head h2,.explain,.unit-h,.mrow h4{unicode-bidi:plaintext}
+/* تنبيه المتصفح داخل التطبيقات */
+.msg.inapp{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.msg.inapp button{background:none;border:0;color:inherit;font-size:1.3rem;line-height:1;cursor:pointer;padding:0 4px}
+/* أرشيف السنوات الماضية */
+details.archive{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)}
+details.archive>summary{cursor:pointer;font-weight:600;color:var(--muted)}
+details.archive[open]>summary{margin-bottom:10px}
+details.archive .list{display:flex;flex-direction:column;gap:10px}

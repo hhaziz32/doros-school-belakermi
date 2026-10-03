@@ -10,9 +10,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=4">
 <script src="config.js"></script>
-<script src="common.js"></script>
+<script src="common.js?v=4"></script>
 <style>
   .head{display:flex;flex-direction:column;gap:8px}
   .head .where{font-size:.88rem}
@@ -50,7 +50,7 @@ var $=function(id){return document.getElementById(id)},esc=D.esc,app=$("app");
 $("school").textContent=SITE.name;
 var id=new URLSearchParams(location.search).get("id")||"";
 
-function fail(t){app.innerHTML='<div class="empty">'+esc(t)+'<div style="margin-top:12px"><a class="btn ghost" href="./">العودة إلى الدروس</a></div></div>'}
+function fail(t){app.innerHTML='<div class="empty">'+esc(t)+'<div style="margin-top:12px"><a class="btn ghost" href="./">العودة إلى الدروس</a></div></div>';D.inAppNote(app)}
 if(!id||!D.apiOn()){fail("هذا الدرس غير موجود.");return}
 
 var saved=D.cached(),hint=saved&&saved.lessons.filter(function(x){return x.id===id})[0];
@@ -83,11 +83,11 @@ function draw(l,stale){
    o+='<div class="file" data-i="'+i+'"><div class="fh"><span class="pill pdf">'+esc(D.KINDS[f.kind]||"ملف")+'</span><span class="nm"><b>'+esc(f.name)+'</b><small>'+(f.size?D.size(f.size):'')+'</small></span>'
     +'<div class="acts"><button class="btn sm" data-a="toggle" data-i="'+i+'" aria-expanded="'+open+'">'+(open?"إخفاء":"اعرض")+'</button><a class="btn ghost sm" href="'+esc(D.fileDownload(f))+'" target="_blank" rel="noopener">تحميل ⤓</a></div></div>'
     +'<div class="fb" id="fb'+i+'"'+(open?'':' hidden')+'>'+(open?body(f):'')+'</div></div>'});
-  o+='</div></section>'}
+  o+='</div><p class="hint" style="margin:8px 0 0;font-size:.82rem;color:var(--muted)">إذا لم يظهر الملف، أو ظهرت رسالة من Google بأن عدد المشاهدات أو التحميلات كبير، أعد المحاولة بعد ساعة، أو اطلب نسخة من أستاذك.</p></section>'}
 
  if(!l.text&&!l.videos.length&&!l.files.length)o+='<div class="empty">هذا الدرس لا يحتوي محتوى بعد.</div>';
  if(stale)o='<div class="msg" role="status">الخادم مشغول الآن، والمعروض نسخة محفوظة في هاتفك'+(l.more?' (الشرح مختصر)':'')+'. أعد فتح الدرس بعد قليل.</div>'+o;
- app.innerHTML=o;
+ app.innerHTML=o;D.inAppNote(app);
  app.addEventListener("click",function(ev){
   var sb=ev.target.closest('[data-a="share"]');if(sb){D.share(stext,url);return}
   var cb=ev.target.closest('[data-a="copy"]');if(cb){var done=function(){cb.textContent="تم النسخ ✓";setTimeout(function(){cb.textContent="نسخ الرابط"},1800)};

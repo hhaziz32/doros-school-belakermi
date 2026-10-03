@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=4">
 <script src="config.js"></script>
-<script src="common.js"></script>
+<script src="common.js?v=4"></script>
 <style>
   .intro{display:flex;gap:14px;align-items:flex-start}
   .intro .bem-badge{font-size:1.3rem;padding:10px 12px}
@@ -71,6 +71,7 @@ function card(l){var s=subj(l.subject),meta=[];if(l.teacher)meta.push("الأس�
 function take(L){all=(L||[]).filter(function(l){var t=D.typeOf(l);return t==="bem"||t==="bemc"}).map(function(l){l.type=D.typeOf(l);return l});loaded=true;render()}
 
 $("view").addEventListener("click",function(e){var b=e.target.closest("[data-s]");if(!b)return;pick=b.dataset.s;render()});
+D.inAppNote(document.querySelector("main"));
 var saved=D.cached();if(saved)take(saved.lessons);
 if(!D.apiOn()){take([]);return}
 D.lessons().then(take,function(){if(!saved){take([])}

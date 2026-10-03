@@ -1,9 +1,10 @@
 /* عامل الخدمة: يجعل الموقع يعمل كتطبيق، ويحفظ ما فتحه التلميذ للعمل بدون إنترنت.
    - الصفحات والكود: من الشبكة أولًا (حتى تصل التحديثات فورًا)، ومن النسخة المحفوظة عند انقطاع الإنترنت
      أو إذا تأخرت الشبكة أكثر من 4 ثوانٍ.
-   - ملفات PDF والصور الموجودة في الموقع: تُحفظ عند أول فتح، ثم تُقرأ من الهاتف.
+   - ملفات PDF والصور الموجودة في الموقع: تُعرض فورًا من الهاتف، وتُحدَّث في الخلفية إن تغيّرت على الموقع.
    - قائمة الدروس وصفحات الدروس من الخادم: من الشبكة أولًا، ومن آخر نسخة محفوظة بدون إنترنت.
    ملاحظة: ملفات Google Drive لا يمكن حفظها هنا؛ يحمّلها التلميذ بزر «تحميل». */
+/* لا تغيّر الاسم V: تغييره يمسح ما حفظه التلاميذ للعمل بدون إنترنت. تحديث هذا الملف يكفي لتحديث الصفحات. */
 var V = "doros-v3";
 var SHELL = ["./", "index.html", "lesson.html", "bem.html", "viewer.html", "teacher.html", "guide.html",
   "style.css", "common.js", "config.js", "imgpdf.js", "lessons.csv", "img/school.jpg",
@@ -44,7 +45,22 @@ function networkFirst(req, nav) {
   });
 }
 
-/* ملفات لا تتغير: PDF، صور، الخطوط، المكتبات */
+/* PDF والصور في الموقع: النسخة المحفوظة فورًا، ثم سؤال الموقع في الخلفية (طلب تحقق صغير) وتحديثها إن تغيّرت */
+function staleRevalidate(e, req) {
+  var key = req.url;
+  return caches.open(V).then(function (c) {
+    return c.match(key).then(function (m) {
+      var net = fetch(key, { cache: "no-cache", credentials: "same-origin" }).then(function (res) {
+        if (res && res.ok && res.type === "basic") c.put(key, res.clone());
+        return res;
+      });
+      if (m) { e.waitUntil(net.catch(function () {})); return m; }
+      return net;
+    });
+  });
+}
+
+/* ملفات لا تتغير أبدًا: الخطوط والمكتبات (عناوينها تحمل رقم الإصدار) */
 function cacheFirst(req) {
   return caches.open(V).then(function (c) {
     return c.match(req).then(function (m) {
@@ -73,7 +89,7 @@ self.addEventListener("fetch", function (e) {
   if (req.method !== "GET") return;
   var url = new URL(req.url);
   if (url.origin === self.location.origin) {
-    if (/\.(pdf|jpe?g|png|webp|svg)$/i.test(url.pathname)) { e.respondWith(cacheFirst(req)); return; }
+    if (/\.(pdf|jpe?g|png|webp|svg)$/i.test(url.pathname)) { e.respondWith(staleRevalidate(e, req)); return; }
     e.respondWith(networkFirst(req, req.mode === "navigate"));
     return;
   }
