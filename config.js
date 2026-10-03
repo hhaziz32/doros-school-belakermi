@@ -7,5 +7,5 @@ var SITE = {
   place: "البيض",
 
   /* رابط خادم فضاء الأساتذة (تطبيق الويب من Google Apps Script) — انظر صفحة setup.html */
-  apiUrl: "https://script.google.com/macros/s/AKfycbz2SeaoGL5bxQ_MQEdCmmInMDjtQUSWq0NOWFEt3-EZ-rAaF1BgP9wIj3IIYyOsSMR3/exec"
+  apiUrl: "https://script.google.com/macros/s/AKfycbwYMpAE4owKssVgWSXStOt7V83j1tR5W6UoCe3lrdcBXnX5I6p2ruCDzIf6mAmgIImZ/exec"
 };
