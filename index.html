@@ -232,8 +232,8 @@ $("q").addEventListener("input",function(){ui.q=this.value.trim();if(ui.q)ui.sub
 var saved=D.apiOn()?D.cached():null,base=[],apiL=saved?mapApi(saved.lessons):[];
 function merge(){lessons=base.concat(apiL)}
 function notice(t,retry){$("error").innerHTML=t?'<div class="msg" role="status" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span>'+t+'</span>'+(retry?'<button class="btn sm" id="retry" type="button">إعادة المحاولة</button>':'')+'</div>':'';
- var b=$("retry");if(b)b.onclick=function(){notice("");fetchApi()}}
-function fetchApi(){return D.lessons().then(function(L){apiL=mapApi(L);merge();render();notice(navigator.onLine?"":"أنت بدون إنترنت. المعروض آخر نسخة محفوظة في هاتفك.")},function(){
+ var b=$("retry");if(b)b.onclick=function(){notice("");fetchApi(true)}}
+function fetchApi(force){return D.lessons(force).then(function(L){apiL=mapApi(L);merge();render();notice(navigator.onLine?"":"أنت بدون إنترنت. المعروض آخر نسخة محفوظة في هاتفك.")},function(){
  if(!navigator.onLine)notice(saved?"أنت بدون إنترنت. المعروض آخر نسخة محفوظة في هاتفك.":"أنت بدون إنترنت. اتصل ثم أعد المحاولة.",true);
  else if(saved)notice("الخادم مشغول الآن، والمعروض هو آخر نسخة محفوظة في هاتفك.",true);
  else notice("تعذّر تحميل دروس الأساتذة (الخادم مشغول أو الاتصال ضعيف).",true)})}

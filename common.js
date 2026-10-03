@@ -111,8 +111,16 @@ var D = (function () {
   function cached() {
     try { var c = JSON.parse(localStorage.getItem(CK) || "null"); return c && Array.isArray(c.lessons) ? c : null; } catch (e) { return null; }
   }
-  function lessons() {
+  /* نسخة حديثة (أقل من دقيقة) تُستعمل مباشرة بدون سؤال الخادم: التلميذ الذي يتنقل بين الصفحات
+     لا يكرر الطلب، فتتضاعف قدرة الخادم عند الزحام */
+  var FRESH = 60000;
+  /* بعد النشر أو التعديل: نجبر الصفحات على طلب القائمة الجديدة */
+  function invalidate() { try { var c = cached(); if (c) { c.at = 0; localStorage.setItem(CK, JSON.stringify(c)); } } catch (e) {} }
+  function fresh() { var c = cached(); return c && c.at && Date.now() - c.at < FRESH ? c : null; }
+  function lessons(force) {
     if (!apiOn()) return Promise.resolve([]);
+    var f = !force && fresh();
+    if (f) { lastNews = Array.isArray(f.news) ? f.news : []; return Promise.resolve(f.lessons); }
     return getJson("api=lessons", 3).then(function (j) {
       if (!j.ok) { var e = new Error(j.error || "SERVER"); e.code = j.error || "SERVER"; throw e; }
       lastNews = Array.isArray(j.news) ? j.news : null;
@@ -123,6 +131,8 @@ var D = (function () {
   /* درس واحد بشرحه الكامل (خادم الإصدار 2). إن فشل الطلب لأي سبب — خادم قديم لا يعرفه
      (Google يرسل صفحته بدون إذن قراءة عبر المواقع فيبدو كخطأ شبكة)، أو زحام — نرجع إلى القائمة. */
   function lesson(id) {
+    var f = fresh(), hit = f && f.lessons.filter(function (x) { return x.id === id; })[0];
+    if (hit && !hit.more) return Promise.resolve(hit);   /* الدرس كامل في النسخة الحديثة */
     function fromList() { return lessons().then(function (L) { return L.filter(function (x) { return x.id === id; })[0] || null; }); }
     return getJson("api=lesson&id=" + encodeURIComponent(id), 1).then(function (j) {
       if (j.ok) return j.lesson;
@@ -147,6 +157,6 @@ var D = (function () {
   return { SUBJ:SUBJ, YEARS:YEARS, TERMS:TERMS, KINDS:KINDS, TYPES:TYPES, subj:subj, esc:esc, fmt:fmt, isNew:isNew, size:size, errText:errText,
     typeName:typeName, typeOf:typeOf, unitKey:unitKey, today:today, activeNews:activeNews, waLink:waLink, share:share, siteUrl:siteUrl,
     ytId:ytId, driveId:driveId, filePreview:filePreview, fileDownload:fileDownload, fileImage:fileImage,
-    apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached, news:news,
+    apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached, news:news, invalidate:invalidate,
     canInstall:canInstall, onInstallable:onInstallable, install:install, standalone:standalone, isIOS:isIOS };
 })();

@@ -199,7 +199,7 @@ function publish(){if(S.busy)return;var f=readForm();
  chain.then(function(){status("جاري النشر…");
   return D.call({action:"save",code:S.code,lesson:{id:f.id,year:f.year,subject:f.subject,term:f.term,title:f.title,text:f.text,
    files:f.files.map(function(x){return x.file}),videos:vids,type:f.type||"lesson",unit:f.unit||""}})})
- .then(function(j){S.busy=false;S.done={id:j.id,edited:!!f.id};S.form=null;S.mine=null;render();window.scrollTo({top:0})},
+ .then(function(j){D.invalidate();S.busy=false;S.done={id:j.id,edited:!!f.id};S.form=null;S.mine=null;render();window.scrollTo({top:0})},
   function(e){S.busy=false;f.files.forEach(function(x){if(x.state==="up")x.state="new"});render();status(D.errText(e));if(e.code==="AUTH")logout()})}
 
 function loadMine(){S.mine=null;D.call({action:"mine",code:S.code}).then(function(j){S.mine=j.lessons;if(S.tab==="mine")renderMine()},function(e){S.mine=[];msg(D.errText(e));render()})}
@@ -232,7 +232,7 @@ function renderNewsAdmin(){var el=$("pane");
  el.innerHTML=o;
  $("nf").onsubmit=function(ev){ev.preventDefault();var title=$("ntitle").value.trim();if(!title){$("ntitle").focus();return}
   NW.busy=true;D.call({action:"newsSave",code:S.code,item:{id:e.id||null,title:title,text:$("ntext").value,until:$("nuntil").value,pinned:$("npin").checked}})
-   .then(function(){NW.busy=false;NW.edit=null;NW.list=null;msg(e.id?"تم حفظ الإعلان.":"تم نشر الإعلان. يظهر في الصفحة الرئيسية خلال دقيقة.",true);render()},function(er){NW.busy=false;msg(D.errText(er));render()})}}
+   .then(function(){D.invalidate();NW.busy=false;NW.edit=null;NW.list=null;msg(e.id?"تم حفظ الإعلان.":"تم نشر الإعلان. يظهر في الصفحة الرئيسية خلال دقيقة.",true);render()},function(er){NW.busy=false;msg(D.errText(er));render()})}}
 
 function renderTeam(){var el=$("pane");
  if(!S.teachers){el.innerHTML='<div class="skeleton"></div>';D.call({action:"teachers",code:S.code}).then(function(j){S.teachers=j.teachers;renderTeam()},function(e){msg(D.errText(e));render()});return}
@@ -275,7 +275,7 @@ app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if
  else if(a==="nCancel"){NW.edit=null;renderNewsAdmin()}
  else if(a==="nDel"){NW.confirm=b.dataset.id;renderNewsAdmin()}
  else if(a==="nDelNo"){NW.confirm=null;renderNewsAdmin()}
- else if(a==="nDelYes"){b.disabled=true;D.call({action:"newsDelete",code:S.code,id:b.dataset.id}).then(function(){NW.confirm=null;NW.list=null;msg("تم حذف الإعلان.",true);render()},function(er){msg(D.errText(er));render()})}
+ else if(a==="nDelYes"){b.disabled=true;D.call({action:"newsDelete",code:S.code,id:b.dataset.id}).then(function(){D.invalidate();NW.confirm=null;NW.list=null;msg("تم حذف الإعلان.",true);render()},function(er){msg(D.errText(er));render()})}
  else if(a==="rmf"){readForm();S.form.files.splice(+b.dataset.i,1);drawFiles()}
  else if(a==="addv"){readForm();S.form.videos.push("");drawVideos();var ins=document.querySelectorAll("#vlist input");ins[ins.length-1].focus()}
  else if(a==="rmv"){readForm();S.form.videos.splice(+b.dataset.i,1);drawVideos()}
@@ -286,7 +286,7 @@ app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if
   S.done=null;S.tab="new";S.msg=null;render();window.scrollTo({top:0})}
  else if(a==="del"){S.confirm=b.dataset.id;renderMine()}
  else if(a==="delNo"){S.confirm=null;S.tab==="team"?renderTeam():renderMine()}
- else if(a==="delYes"){b.disabled=true;D.call({action:"delete",code:S.code,id:b.dataset.id}).then(function(){S.confirm=null;S.mine=S.mine.filter(function(x){return x.id!==b.dataset.id});msg("تم حذف الدرس.",true);render()},function(e){msg(D.errText(e));render()})}
+ else if(a==="delYes"){b.disabled=true;D.call({action:"delete",code:S.code,id:b.dataset.id}).then(function(){D.invalidate();S.confirm=null;S.mine=S.mine.filter(function(x){return x.id!==b.dataset.id});msg("تم حذف الدرس.",true);render()},function(e){msg(D.errText(e));render()})}
  else if(a==="copy"){var t=S.teachers.filter(function(x){return x.id===b.dataset.id})[0];if(t)copyText(invite(t),b)}
  else if(a==="stop"){S.confirm="t"+b.dataset.id;renderTeam()}
  else if(a==="reset"){S.confirm="r"+b.dataset.id;renderTeam()}
