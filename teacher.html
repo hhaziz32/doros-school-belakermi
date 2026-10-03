@@ -128,7 +128,7 @@ function renderForm(){
  $("pane").innerHTML=o;drawFiles();drawVideos();drawPhotos();
  var ty=$("type");if(ty)ty.onchange=function(){readForm();renderForm()};
  $("subject").addEventListener("change",refreshUnits);Array.prototype.forEach.call(document.querySelectorAll('input[name="year"]'),function(x){x.addEventListener("change",refreshUnits)});
- if(v3()&&S.mine===null&&!S._loading)loadMineQuiet();
+ if(S.mine===null&&!S.mineErr)loadMine();
  $("lf").onsubmit=function(e){e.preventDefault();publish()};
  $("picker").onchange=function(){var fs=Array.prototype.slice.call(this.files);this.value="";
   status(fs.some(function(f){return/^image\//.test(f.type)&&f.size>1.2*1048576})?"جاري تصغير الصور…":"");
@@ -142,7 +142,20 @@ function readForm(){var f=S.form,y=document.querySelector('input[name="year"]:ch
 function unitsFor(f){var u=[];(S.mine||[]).forEach(function(l){if(l.subject===f.subject&&(isBem(f.type)?isBem(l.type):l.year===+f.year&&!isBem(l.type))&&l.unit&&u.indexOf(l.unit)<0)u.push(l.unit)});
  return u.sort(function(a,b){return D.unitKey(a)-D.unitKey(b)})}
 function refreshUnits(){var dl=$("units");if(!dl||!S.form||!$("lf"))return;readForm();dl.innerHTML=unitsFor(S.form).map(function(u){return'<option value="'+esc(u)+'">'}).join("")}
-function loadMineQuiet(){S._loading=true;D.call({action:"mine",code:S.code}).then(function(j){S._loading=false;S.mine=j.lessons;refreshUnits()},function(){S._loading=false})}
+/* تحميل «دروسي»: طلب واحد فقط في كل مرة، والنتيجة تُعرض في التبويب المفتوح حاليًا */
+function loadMine(){if(S._loading)return;S._loading=true;S.mineErr=null;
+ D.call({action:"mine",code:S.code}).then(function(j){S._loading=false;S.mine=j.lessons;if(S.tab==="mine")renderMine();else refreshUnits()},
+  function(e){S._loading=false;S.mineErr=D.errText(e);if(S.tab==="mine")renderMine()})}
+/* المدير: تحميل الأساتذة والإعلانات مسبقًا بعد الدخول، لتفتح التبويبات فورًا */
+function loadTeachers(){if(S._tload)return;S._tload=true;S.tErr=null;
+ D.call({action:"teachers",code:S.code}).then(function(j){S._tload=false;S.teachers=j.teachers;if(S.tab==="team")renderTeam()},
+  function(e){S._tload=false;S.tErr=D.errText(e);if(S.tab==="team")renderTeam()})}
+function loadNews(){if(NW.loading||!v3())return;NW.loading=true;NW.err=null;
+ D.call({action:"news",code:S.code}).then(function(j){NW.loading=false;NW.list=j.news;if(S.tab==="news")renderNewsAdmin()},
+  function(e){NW.loading=false;NW.err=D.errText(e);if(S.tab==="news")renderNewsAdmin()})}
+function prefetch(){if(!S.me)return;loadMine();if(S.me.role==="admin"){loadTeachers();loadNews()}}
+function waiting(t){return'<div class="skeleton"></div><p style="color:var(--muted);font-size:.88rem;margin:8px 0 0">'+t+'</p>'}
+function failed(t,a){return'<div class="msg" role="status" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span>'+esc(t)+'</span><button class="btn sm" type="button" data-a="'+a+'">إعادة المحاولة</button></div>'}
 
 /* ---- أداة: صور الصفحات ← ملف PDF واحد مضغوط ---- */
 var PH={open:false,list:[],busy:false};
@@ -182,7 +195,7 @@ function status(t){var s=$("status");if(s)s.textContent=t}
 /* ---------- actions ---------- */
 function login(code,keep){if(!code){msg("اكتب الرمز أولًا.");render();return}
  S.busy=true;S.msg=null;render();
- D.call({action:"login",code:code}).then(function(j){S.code=code;S.me={name:j.name,role:j.role,subjects:j.subjects,v:j.v||2};remember(code,keep);S.busy=false;S.form=null;S.tab="new";S.msg=null;render()},
+ D.call({action:"login",code:code}).then(function(j){S.code=code;S.me={name:j.name,role:j.role,subjects:j.subjects,v:j.v||2};remember(code,keep);S.busy=false;S.form=null;S.tab="new";S.msg=null;render();prefetch()},
   function(e){S.busy=false;S.code=code;if(e.code==="AUTH")forget();msg(D.errText(e));render()})}
 
 function publish(){if(S.busy)return;var f=readForm();
@@ -199,11 +212,11 @@ function publish(){if(S.busy)return;var f=readForm();
  chain.then(function(){status("جاري النشر…");
   return D.call({action:"save",code:S.code,lesson:{id:f.id,year:f.year,subject:f.subject,term:f.term,title:f.title,text:f.text,
    files:f.files.map(function(x){return x.file}),videos:vids,type:f.type||"lesson",unit:f.unit||""}})})
- .then(function(j){D.invalidate();S.busy=false;S.done={id:j.id,edited:!!f.id};S.form=null;S.mine=null;render();window.scrollTo({top:0})},
+ .then(function(j){D.invalidate();S.busy=false;S.done={id:j.id,edited:!!f.id};S.form=null;S.mine=null;render();window.scrollTo({top:0});loadMine()},
   function(e){S.busy=false;f.files.forEach(function(x){if(x.state==="up")x.state="new"});render();status(D.errText(e));if(e.code==="AUTH")logout()})}
 
-function loadMine(){S.mine=null;D.call({action:"mine",code:S.code}).then(function(j){S.mine=j.lessons;if(S.tab==="mine")renderMine()},function(e){S.mine=[];msg(D.errText(e));render()})}
-function renderMine(){var el=$("pane");if(!S.mine){el.innerHTML='<div class="skeleton"></div>';if(S.mine===null&&!S._loading){S._loading=true;D.call({action:"mine",code:S.code}).then(function(j){S._loading=false;S.mine=j.lessons;renderMine()},function(e){S._loading=false;S.mine=[];msg(D.errText(e));render()})}return}
+function renderMine(){var el=$("pane");
+ if(!S.mine){if(S.mineErr){el.innerHTML=failed(S.mineErr,"mineRetry");return}el.innerHTML=waiting("جاري تحميل الدروس…");loadMine();return}
  if(!S.mine.length){el.innerHTML='<div class="empty">لم تنشر أي درس بعد. ابدأ من «درس جديد».</div>';return}
  el.innerHTML='<div class="card">'+S.mine.map(function(l){var s=D.subj(l.subject);
   var bits=[];if(l.files.length)bits.push(l.files.length===1?"ملف":l.files.length===2?"ملفان":l.files.length+" ملفات");if(l.videos.length)bits.push(l.videos.length===1?"فيديو":l.videos.length+" فيديو");if(l.text)bits.push("شرح");
@@ -216,7 +229,7 @@ function renderMine(){var el=$("pane");if(!S.mine){el.innerHTML='<div class="ske
 var NW={list:null,edit:null,confirm:null,busy:false};
 function renderNewsAdmin(){var el=$("pane");
  if(!v3()){el.innerHTML='<div class="empty">لوحة الإعلانات تحتاج تحديث كود الخادم إلى الإصدار 3. <a href="setup.html">طريقة التحديث</a></div>';return}
- if(!NW.list){el.innerHTML='<div class="skeleton"></div>';D.call({action:"news",code:S.code}).then(function(j){NW.list=j.news;renderNewsAdmin()},function(e){msg(D.errText(e));render()});return}
+ if(!NW.list){if(NW.err){el.innerHTML=failed(NW.err,"newsRetry");return}el.innerHTML=waiting("جاري تحميل الإعلانات…");loadNews();return}
  var e=NW.edit||{title:"",text:"",until:"",pinned:false},t=D.today();
  var o='<form class="card" id="nf" style="display:flex;flex-direction:column;gap:12px"><h3 style="font-size:1.1rem">'+(e.id?"تعديل إعلان":"إعلان جديد")+'</h3>'
   +'<div class="field"><label for="ntitle">العنوان</label><input id="ntitle" maxlength="120" value="'+esc(e.title)+'" placeholder="مثال: اختبارات الفصل الأول"></div>'
@@ -232,10 +245,10 @@ function renderNewsAdmin(){var el=$("pane");
  el.innerHTML=o;
  $("nf").onsubmit=function(ev){ev.preventDefault();var title=$("ntitle").value.trim();if(!title){$("ntitle").focus();return}
   NW.busy=true;D.call({action:"newsSave",code:S.code,item:{id:e.id||null,title:title,text:$("ntext").value,until:$("nuntil").value,pinned:$("npin").checked}})
-   .then(function(){D.invalidate();NW.busy=false;NW.edit=null;NW.list=null;msg(e.id?"تم حفظ الإعلان.":"تم نشر الإعلان. يظهر في الصفحة الرئيسية خلال دقيقة.",true);render()},function(er){NW.busy=false;msg(D.errText(er));render()})}}
+   .then(function(){D.invalidate();NW.busy=false;NW.edit=null;NW.list=null;loadNews();msg(e.id?"تم حفظ الإعلان.":"تم نشر الإعلان. يظهر في الصفحة الرئيسية خلال دقيقة.",true);render()},function(er){NW.busy=false;msg(D.errText(er));render()})}}
 
 function renderTeam(){var el=$("pane");
- if(!S.teachers){el.innerHTML='<div class="skeleton"></div>';D.call({action:"teachers",code:S.code}).then(function(j){S.teachers=j.teachers;renderTeam()},function(e){msg(D.errText(e));render()});return}
+ if(!S.teachers){if(S.tErr){el.innerHTML=failed(S.tErr,"teamRetry");return}el.innerHTML=waiting("جاري تحميل الأساتذة…");loadTeachers();return}
  var o='';
  if(S.newTeacher){var t=S.newTeacher;o+='<div class="newcode"><span>الرمز الجديد لـ <b>'+esc(t.name)+'</b>:</span><span class="mono">'+esc(t.code)+'</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="copy" data-id="'+esc(t.id)+'">نسخ رسالة الدعوة</button><a class="btn ghost sm" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(invite(t))+'">إرسال عبر واتساب</a></div></div>'}
  o+='<form class="card" id="tf" style="display:flex;flex-direction:column;gap:12px"><h3 style="font-size:1.1rem">إضافة أستاذ</h3><div class="grid2"><div class="field"><label for="tname">الاسم</label><input id="tname" maxlength="60" placeholder="مثال: أ. بن علي"></div>'
@@ -259,10 +272,15 @@ function copyText(t,btn){var done=function(){var o=btn.textContent;btn.textConte
  if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,function(){fallback()});else fallback();
  function fallback(){var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();try{document.execCommand("copy");done()}catch(e){}document.body.removeChild(a)}}
 
-function logout(){NW={list:null,edit:null,confirm:null,busy:false};forget();S.tab="new";S.msg=null;S.confirm=null;S.me=null;S.code="";S.form=null;S.mine=null;S.teachers=null;S.newTeacher=null;S.done=null;render()}
+function logout(){NW={list:null,edit:null,confirm:null,busy:false};S.mineErr=S.tErr=null;S._loading=S._tload=false;forget();S.tab="new";S.msg=null;S.confirm=null;S.me=null;S.code="";S.form=null;S.mine=null;S.teachers=null;S.newTeacher=null;S.done=null;render()}
 
 app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if(!b)return;var a=b.dataset.a;
- if(a==="tab"){if(S.tab==="new"&&$("lf"))readForm();S.tab=b.dataset.k;S.msg=null;S.confirm=null;if(S.tab==="mine")S.mine=null;if(S.tab==="news"){NW.list=null;NW.edit=null;NW.confirm=null}render()}
+ if(a==="tab"){if(S.tab==="new"&&$("lf"))readForm();S.tab=b.dataset.k;S.msg=null;S.confirm=null;if(S.tab==="news"){NW.edit=null;NW.confirm=null}render();
+  /* القائمة المحمّلة تظهر فورًا، وتُحدَّث في الخلفية */
+  if(S.tab==="mine"&&S.mine)loadMine();if(S.tab==="news"&&NW.list)loadNews()}
+ else if(a==="mineRetry"){S.mineErr=null;renderMine()}
+ else if(a==="teamRetry"){S.tErr=null;renderTeam()}
+ else if(a==="newsRetry"){NW.err=null;renderNewsAdmin()}
  else if(a==="logout")logout();
  else if(a==="pick")$("picker").click();
  else if(a==="photos"){if(!window.IMGPDF)return;PH.open=true;drawPhotos();$("phPick").click()}
@@ -275,7 +293,7 @@ app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if
  else if(a==="nCancel"){NW.edit=null;renderNewsAdmin()}
  else if(a==="nDel"){NW.confirm=b.dataset.id;renderNewsAdmin()}
  else if(a==="nDelNo"){NW.confirm=null;renderNewsAdmin()}
- else if(a==="nDelYes"){b.disabled=true;D.call({action:"newsDelete",code:S.code,id:b.dataset.id}).then(function(){D.invalidate();NW.confirm=null;NW.list=null;msg("تم حذف الإعلان.",true);render()},function(er){msg(D.errText(er));render()})}
+ else if(a==="nDelYes"){b.disabled=true;D.call({action:"newsDelete",code:S.code,id:b.dataset.id}).then(function(){D.invalidate();NW.confirm=null;NW.list=null;loadNews();msg("تم حذف الإعلان.",true);render()},function(er){msg(D.errText(er));render()})}
  else if(a==="rmf"){readForm();S.form.files.splice(+b.dataset.i,1);drawFiles()}
  else if(a==="addv"){readForm();S.form.videos.push("");drawVideos();var ins=document.querySelectorAll("#vlist input");ins[ins.length-1].focus()}
  else if(a==="rmv"){readForm();S.form.videos.splice(+b.dataset.i,1);drawVideos()}
@@ -296,7 +314,7 @@ app.addEventListener("click",function(ev){var b=ev.target.closest("[data-a]");if
 
 S.code=store();
 if(S.code&&D.apiOn()){S.busy=true;app.innerHTML='<div class="skeleton" style="max-width:420px;margin:24px auto"></div>';
- D.call({action:"login",code:S.code}).then(function(j){S.busy=false;S.me={name:j.name,role:j.role,subjects:j.subjects,v:j.v||2};render()},function(e){S.busy=false;if(e.code==="AUTH")forget();render()})}
+ D.call({action:"login",code:S.code}).then(function(j){S.busy=false;S.me={name:j.name,role:j.role,subjects:j.subjects,v:j.v||2};render();prefetch()},function(e){S.busy=false;if(e.code==="AUTH")forget();render()})}
 else render();
 })();
 </script>
