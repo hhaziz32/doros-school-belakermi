@@ -8,7 +8,7 @@
 var V = "doros-v3";
 var SHELL = ["./", "index.html", "lesson.html", "bem.html", "viewer.html", "teacher.html", "guide.html",
   "style.css", "common.js", "config.js", "imgpdf.js", "lessons.csv", "img/school.jpg",
-  "icons/icon-192.png", "manifest.webmanifest"];
+  "icons/app-192.png", "icons/favicon.svg", "icons/favicon-32.png", "manifest.webmanifest"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(V).then(function (c) {

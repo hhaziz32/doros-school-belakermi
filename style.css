@@ -192,7 +192,8 @@ footer a{color:#fff}
 .pill.t-ex{color:var(--y1)}.pill.t-devoir{color:var(--y2)}.pill.t-exam{color:var(--danger)}.pill.t-corr{color:var(--ok)}
 .pill.t-bem,.pill.t-bemc{background:var(--charcoal);color:var(--gold);border-color:var(--charcoal)}
 .install{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px dashed var(--brick-ink);border-radius:12px;padding:12px 14px}
-.install .it{display:flex;flex-direction:column;min-width:0}
+.install .it{display:flex;flex-direction:column;min-width:0;flex:1}
+.install .iico{flex:none;width:52px;height:52px;border-radius:12px}
 .install .it b{font-weight:600}
 .install .it small{color:var(--muted);font-size:.84rem}
 .sharebar{display:flex;gap:8px;flex-wrap:wrap}
