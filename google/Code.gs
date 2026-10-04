@@ -1,5 +1,5 @@
 // خادم فضاء الأساتذة — متوسطة الشهيد بلعكرمي أعمر
-// الإصدار 4 (قراءة الجدول حسب أسماء الأعمدة، منع التكرار، نسخة احتياطية، أدوات المدير)
+// الإصدار 5 (عدد المشاهدات والزيارات، قراءة الجدول حسب أسماء الأعمدة، منع التكرار، نسخة احتياطية)
 //
 // طريقة التركيب (مرة واحدة):
 //   1. الصق هذا الملف كاملًا في مشروع جديد على script.google.com
@@ -28,7 +28,9 @@ var EXCERPT = 220;           // طول مقتطف الشرح في قائمة ا�
 var CACHE_TTL = 21600;       // 6 ساعات (الحد الأقصى في Google)
 var CHUNK = 40000;           // حجم القطعة في الذاكرة المؤقتة (أقل من حد 100KB)
 var LOCK_WAIT = 30000;       // أقصى انتظار عند نشر عدة أساتذة في اللحظة نفسها
-var VERSION = 4;
+var VERSION = 5;
+var VIEW_SHARDS = 20;        // عدّادات المشاهدات المؤقتة (موزعة حتى لا تتزاحم)
+var VIEW_FLUSH = 600;        // تُنقل إلى الجدول مرة كل 10 دقائق على الأكثر
 
 var ALLOWED = {
   "application/pdf": "pdf",
@@ -41,7 +43,7 @@ var ALLOWED = {
 };
 var SUBJECTS = ["ar", "math", "fr", "en", "sci", "phy", "hist", "isl", "civ", "amz", "art", "mus", "info"];
 var TYPES = ["lesson", "ex", "devoir", "exam", "corr", "bem", "bemc"];  // درس، تمارين، فرض، اختبار، تصحيح، موضوع BEM، تصحيح BEM
-var L_HEAD = ["id", "date", "year", "subject", "term", "title", "text", "files", "videos", "teacher", "teacherId", "status", "updated", "type", "unit"];
+var L_HEAD = ["id", "date", "year", "subject", "term", "title", "text", "files", "videos", "teacher", "teacherId", "status", "updated", "type", "unit", "views"];
 var T_HEAD = ["id", "name", "subjects", "code", "role", "active"];
 var N_HEAD = ["id", "date", "title", "text", "until", "author", "status", "pinned"];
 var L_SHEET = "الدروس", T_SHEET = "الأساتذة", N_SHEET = "الإعلانات";
@@ -112,10 +114,14 @@ function backup() {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
-    if (p.api === "lessons") { var pub = publicList_(); return json_({ ok: true, v: VERSION, lessons: pub.list, news: pub.news }); }
-    if (p.api === "lesson") {
+    if (p.api === "lessons" || p.api === "lesson") {
+      // المشاهدات تصل مع طلبات القراءة العادية (بدون طلب إضافي للخادم): seen = دروس فتحها التلميذ، visit = أول زيارة له اليوم
+      // vn: رقم يرسله الهاتف ويعود كما هو، فلا يظن الهاتف أن ردًا قديمًا محفوظًا أكّد وصول مشاهداته
+      var vs = { seen: 0, visit: 0 }, vn = String(p.vn || "").replace(/[^a-z0-9]/g, "").slice(0, 12);
+      if (p.seen || p.visit) { try { vs = views_(String(p.seen || ""), p.visit === "1"); } catch (e) {} }
+      if (p.api === "lessons") { var pub = publicList_(); return json_({ ok: true, v: VERSION, lessons: pub.list, news: pub.news, seen: vs.seen, visit: vs.visit, vn: vn }); }
       var l = publicLesson_(String(p.id || ""));
-      return json_(l ? { ok: true, v: VERSION, lesson: l } : { ok: false, v: VERSION, error: "NOT_FOUND" });
+      return json_(l ? { ok: true, v: VERSION, lesson: l, seen: vs.seen, visit: vs.visit, vn: vn } : { ok: false, v: VERSION, error: "NOT_FOUND", seen: vs.seen, visit: vs.visit, vn: vn });
     }
   } catch (err) { return json_({ ok: false, error: errCode_(err) }); }
   return HtmlService.createHtmlOutput('<p dir="rtl" style="font:16px sans-serif">خادم دروس ' + SCHOOL + ' يعمل ✓</p>');
@@ -131,7 +137,7 @@ function doPost(e) {
       case "save": out = save_(who, req.lesson); break;   // { id } أو { id, dup: true } إذا وصلت المحاولة نفسها مرة ثانية
       case "mine": out = { lessons: mine_(who) }; break;
       case "delete": del_(who, req.id); out = {}; break;
-      case "teachers": admin_(who); out = { teachers: teachers_().map(publicTeacher_), storage: storage_() }; break;
+      case "teachers": admin_(who); out = { teachers: teachers_().map(publicTeacher_), storage: storage_(), visits: visits_() }; break;
       case "addTeacher": admin_(who); out = { teacher: publicTeacher_(addTeacher_(req.name, req.subjects)) }; break;
       case "removeTeacher": admin_(who); removeTeacher_(req.id); out = {}; break;
       case "resetCode": admin_(who); out = { code: resetCode_(req.id) }; break;
@@ -312,7 +318,7 @@ function lessonOf_(r) {
     id: String(r.id), ts: Number(r.date) || 0, date: day_(r.date), year: Number(r.year), subject: String(r.subject), term: Number(r.term) || 0,
     title: String(r.title), text: String(r.text || ""), files: parse_(r.files), videos: parse_(r.videos),
     teacher: String(r.teacher || ""), teacherId: String(r.teacherId || ""), status: String(r.status), _r: r,
-    type: TYPES.indexOf(String(r.type)) >= 0 ? String(r.type) : "lesson", unit: String(r.unit || "")
+    type: TYPES.indexOf(String(r.type)) >= 0 ? String(r.type) : "lesson", unit: String(r.unit || ""), views: Number(r.views) || 0
   };
 }
 function lessons_(t) { return (t || table_(L_SHEET, L_HEAD)).rows.map(lessonOf_); }
@@ -415,8 +421,98 @@ function view_(l, withOwner) {
 }
 
 function mine_(who) {
+  var buf = viewBuffer_().lessons;   // المشاهدات التي لم تُنقل إلى الجدول بعد
   return lessons_().filter(function (l) { return l.status === "published" && (who.role === "admin" || l.teacherId === who.id); })
-    .map(function (l) { return view_(l, true); }).sort(function (a, b) { return b.ts - a.ts; });
+    .map(function (l) { var o = view_(l, true); o.views = l.views + (buf[l.id] || 0); return o; }).sort(function (a, b) { return b.ts - a.ts; });
+}
+
+// ---------------- عدد المشاهدات والزيارات ----------------
+// كل هاتف تلميذ يُحسب مرة واحدة في اليوم لكل درس (والزيارة مرة واحدة في اليوم)، وهواتف الأساتذة لا تُحسب.
+// العدّ يمرّ أولًا بذاكرة مؤقتة موزعة على 20 خانة (سريع، بدون قفل)، ثم يُنقل إلى عمود «views» في الجدول
+// وإلى خاصية «visits» مرة كل 10 دقائق على الأكثر. الأرقام تقريبية (قد يضيع عدد قليل جدًا عند الزحام الشديد).
+
+function views_(s, visit) {
+  var ids = [], seen = {};
+  String(s).split(",").forEach(function (x) { x = x.trim(); if (/^[a-z0-9]{6,30}$/.test(x) && !seen[x] && ids.length < 30) { seen[x] = 1; ids.push(x); } });
+  if (!ids.length && !visit) return { seen: 0, visit: 0 };
+  var c = CacheService.getScriptCache(), key = "vb:" + Math.floor(Math.random() * VIEW_SHARDS), m;
+  try { m = JSON.parse(c.get(key) || "{}"); } catch (e) { m = {}; }
+  ids.forEach(function (id) { m[id] = (m[id] || 0) + 1; });
+  if (visit) { var d = "@" + day_(Date.now()); m[d] = (m[d] || 0) + 1; }
+  c.put(key, JSON.stringify(m), CACHE_TTL);
+  if (!c.get("vflush")) {
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(0)) { try { c.put("vflush", "1", VIEW_FLUSH); flushViews_(); } catch (e) {} finally { lock.releaseLock(); } }
+  }
+  return { seen: ids.length, visit: visit ? 1 : 0 };
+}
+
+function viewKeys_() { var k = []; for (var i = 0; i < VIEW_SHARDS; i++) k.push("vb:" + i); return k; }
+function viewBuffer_() {
+  var got = CacheService.getScriptCache().getAll(viewKeys_()), out = { lessons: {}, days: {}, any: false };
+  for (var key in got) {
+    var m; try { m = JSON.parse(got[key]); } catch (e) { continue; }
+    for (var id in m) {
+      out.any = true;
+      if (id.charAt(0) === "@") out.days[id.slice(1)] = (out.days[id.slice(1)] || 0) + m[id];
+      else out.lessons[id] = (out.lessons[id] || 0) + m[id];
+    }
+  }
+  return out;
+}
+
+// يُستدعى والقفل محجوز
+function flushViews_() {
+  var c = CacheService.getScriptCache(), b = viewBuffer_();
+  if (!b.any) return;
+  c.removeAll(viewKeys_());
+  try {
+    if (Object.keys(b.lessons).length) {
+      var sh = sheet_(L_SHEET); headers_(sh, L_HEAD, L_TEXT);
+      var last = sh.getLastRow();
+      if (last >= 2) {
+        var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (x) { return String(x).trim(); });
+        var ci = hdr.indexOf("id") + 1, cv = hdr.indexOf("views") + 1;
+        if (ci > 0 && cv > 0) {
+          var ids = sh.getRange(2, ci, last - 1, 1).getValues(), vals = sh.getRange(2, cv, last - 1, 1).getValues(), changed = false;
+          for (var r = 0; r < ids.length; r++) { var n = b.lessons[String(ids[r][0])]; if (n) { vals[r][0] = (Number(vals[r][0]) || 0) + n; changed = true; } }
+          if (changed) sh.getRange(2, cv, last - 1, 1).setValues(vals);
+        }
+      }
+      b.lessons = {};
+    }
+    if (Object.keys(b.days).length) {
+      var p = PropertiesService.getScriptProperties(), v;
+      try { v = JSON.parse(p.getProperty("visits") || "{}"); } catch (e) { v = {}; }
+      for (var d in b.days) v[d] = (v[d] || 0) + b.days[d];
+      var ks = Object.keys(v).sort(); while (ks.length > 400) delete v[ks.shift()];
+      p.setProperty("visits", JSON.stringify(v));
+      b.days = {};
+    }
+  } catch (e) {
+    // فشل النقل: نعيد ما لم يُحفظ إلى الذاكرة المؤقتة ليُنقل في المرة القادمة
+    var back = {}, k;
+    for (k in b.lessons) back[k] = b.lessons[k];
+    for (k in b.days) back["@" + k] = b.days[k];
+    if (Object.keys(back).length) c.put("vb:0", JSON.stringify(back), CACHE_TTL);
+  }
+}
+
+// للمدير: الزيارات اليومية (اليوم، آخر 7 أيام، آخر 30 يومًا، المجموع، وآخر 14 يومًا يومًا بيوم)
+function visits_() {
+  var v; try { v = JSON.parse(PropertiesService.getScriptProperties().getProperty("visits") || "{}"); } catch (e) { v = {}; }
+  var buf = viewBuffer_().days, d;
+  for (d in buf) v[d] = (v[d] || 0) + buf[d];
+  var now = Date.now(), out = { today: 0, d7: 0, d30: 0, total: 0, days: [] };
+  for (var i = 0; i < 30; i++) {
+    var k = day_(now - i * 864e5), n = v[k] || 0;
+    if (i === 0) out.today = n;
+    if (i < 7) out.d7 += n;
+    out.d30 += n;
+    if (i < 14) out.days.unshift([k, n]);
+  }
+  for (d in v) out.total += v[d];
+  return out;
 }
 
 // ---------------- لوحة الإعلانات (المدير فقط) ----------------

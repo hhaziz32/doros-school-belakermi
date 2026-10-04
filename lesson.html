@@ -56,6 +56,8 @@ function fail(t){app.innerHTML='<div class="empty">'+esc(t)+'<div style="margin-
 if(!id||!D.apiOn()){fail("هذا الدرس غير موجود.");return}
 
 var saved=D.cached(),hint=saved&&saved.lessons.filter(function(x){return x.id===id})[0];
+/* عدد المشاهدات: يُرسل مع هذا الطلب نفسه أو مع الطلب التالي */
+D.markVisit();D.markView(id);
 D.lesson(id).then(function(l){draw(l,false)},function(){
  if(hint)draw(hint,true);else fail("الخادم مشغول أو الاتصال ضعيف. أعد فتح الدرس بعد قليل.")});
 function draw(l,stale){

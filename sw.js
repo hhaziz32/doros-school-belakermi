@@ -23,7 +23,7 @@ self.addEventListener("activate", function (e) {
 });
 
 function pageKey(req) { var u = new URL(req.url); return u.origin + u.pathname; }
-function apiKey(url) { var u = new URL(url); u.searchParams.delete("t"); return "https://doros-api.local/?" + u.searchParams.toString(); }
+function apiKey(url) { var u = new URL(url); ["t", "seen", "visit", "vn"].forEach(function (k) { u.searchParams.delete(k); }); return "https://doros-api.local/?" + u.searchParams.toString(); }
 function timeout(ms) { return new Promise(function (ok) { setTimeout(function () { ok(null); }, ms); }); }
 
 /* صفحات وكود الموقع */

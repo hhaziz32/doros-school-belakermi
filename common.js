@@ -106,11 +106,46 @@ var D = (function () {
   function news() { if (lastNews) return lastNews; var c = cached(); return c && Array.isArray(c.news) ? c.news : []; }
   function getUrl(q) { return SITE.apiUrl + (SITE.apiUrl.indexOf("?") >= 0 ? "&" : "?") + q + "&t=" + Date.now(); }
   function wait(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+  /* ---- عدد المشاهدات والزيارات (خادم الإصدار 5) ----
+     الدرس الذي يفتحه التلميذ يُسجَّل في هاتفه (مرة واحدة في اليوم لكل درس)، ويُرسَل مع طلب القراءة التالي
+     بدون أي طلب إضافي للخادم. هواتف الأساتذة لا تُحسب. */
+  var VQ = "doros-views-v1", VS = "doros-seen-v1", VD = "doros-visit-v1";
+  function lsGet(k, d) { try { var v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function teacherDevice() { try { return !!(localStorage.getItem("doros-code") || sessionStorage.getItem("doros-code")); } catch (e) { return false; } }
+  function markView(id) {
+    id = String(id || ""); if (!/^[a-z0-9]{6,30}$/.test(id) || teacherDevice()) return;
+    var t = today(), seen = lsGet(VS, {});
+    if (seen[id] === t) return;
+    for (var k in seen) if (seen[k] !== t) delete seen[k];
+    seen[id] = t; lsSet(VS, seen);
+    var q = lsGet(VQ, []); if (q.indexOf(id) < 0) q.push(id); lsSet(VQ, q.slice(-100));
+  }
+  function markVisit() {
+    if (teacherDevice()) return;
+    var v = lsGet(VD, {}); if (v.day === today()) return;
+    lsSet(VD, { day: today(), pending: true });
+  }
+  function viewParams() {
+    var q = lsGet(VQ, []).slice(0, 30), v = lsGet(VD, {}), o = { ids: q, visit: !!v.pending, s: "", n: "" };
+    if (q.length) o.s += "&seen=" + q.join(",");
+    if (o.visit) o.s += "&visit=1";
+    if (o.s) { o.n = Math.random().toString(36).slice(2, 10); o.s += "&vn=" + o.n; }
+    return o;
+  }
+  function viewAck(sent, j) {
+    /* خادم قديم، أو رد قديم محفوظ في الهاتف (بدون إنترنت): نحتفظ بها حتى يؤكد الخادم نفسه وصولها */
+    if (!j || !(j.v >= 5) || !sent.n || j.vn !== sent.n) return;
+    if (sent.ids.length && j.seen != null) lsSet(VQ, lsGet(VQ, []).filter(function (x) { return sent.ids.indexOf(x) < 0; }));
+    if (sent.visit && j.visit) { var v = lsGet(VD, {}); v.pending = false; lsSet(VD, v); }
+  }
+
   function getJson(q, tries) {
     var n = 0;
     function attempt() {
       n++;
-      return fetch(getUrl(q)).then(function (r) {
+      var sent = viewParams();
+      return fetch(getUrl(q + sent.s)).then(function (r) {
         return r.text().then(function (t) {
           var j; try { j = JSON.parse(t); } catch (e) { j = null; }
           if (!j) {
@@ -118,6 +153,7 @@ var D = (function () {
             var old = /خادم دروس/.test(t), e = new Error(old ? "UNSUPPORTED" : "BUSY"); e.code = e.message; throw e;
           }
           if (!j.ok && j.error === "SERVER") { var x = new Error("BUSY"); x.code = "BUSY"; throw x; }
+          viewAck(sent, j);
           return j;
         });
       }).catch(function (e) {
@@ -191,6 +227,6 @@ var D = (function () {
     typeName:typeName, typeOf:typeOf, unitKey:unitKey, digits:digits, fold:fold, today:today, activeNews:activeNews, waLink:waLink, share:share, siteUrl:siteUrl,
     ytId:ytId, driveId:driveId, filePreview:filePreview, fileDownload:fileDownload, fileImage:fileImage,
     apiOn:apiOn, call:call, upload:upload, mime:mime, lessons:lessons, lesson:lesson, cached:cached, news:news, invalidate:invalidate,
-    inApp:inApp, inAppNote:inAppNote, yearStart:yearStart,
+    inApp:inApp, inAppNote:inAppNote, yearStart:yearStart, markView:markView, markVisit:markVisit,
     canInstall:canInstall, onInstallable:onInstallable, install:install, standalone:standalone, isIOS:isIOS };
 })();
